@@ -1,0 +1,333 @@
+START:
+
+.include "m328pdef.inc"
+.org 0x00
+
+
+; A  = A1 A0
+; B  = B1 B0
+; S  = S2 S1 S0
+; F  = F1 F0
+
+; inicializar memoria en cero
+; indicar entradas 
+; leer entradas
+; seleccionar operacion
+; hacer operación
+; mostrar resultado
+
+RESET:
+
+    ldi r16, 0x00
+    out DDRB, r16
+
+    ldi r16, 0b00111111
+    out PORTB, r16
+
+    ldi r16, 0x00
+    out DDRC, r16
+
+    ldi r16, 0b00000001
+    out PORTC, r16
+
+    ldi r16, 0b11111100
+    out DDRD, r16
+
+; Todas las salidas inicialmente en 0
+
+    ldi r16, 0x00
+    out PORTD, r16
+
+MAIN:
+
+    in r16, PINB
+
+    com r16
+
+    mov r17, r16
+
+    andi r17, 0b00000011
+
+    mov r18, r16
+
+    andi r18, 0b00001100
+
+    lsr r18
+    lsr r18
+
+    mov r19, r16
+
+    andi r19, 0b00110000
+
+    lsr r19
+    lsr r19
+    lsr r19
+    lsr r19
+
+    in r20, PINC
+
+    com r20
+
+    andi r20, 0b00000001
+
+    mov r21, r19
+
+    or r21, r20
+
+; SELECCIÓN DE OPERACIÓN
+
+    cpi r21, 0b000
+    breq CLEAR
+
+    cpi r21, 0b001
+    breq RESTA
+
+    cpi r21, 0b010
+    breq SUMA
+
+    cpi r21, 0b011
+    breq XOR_OP
+
+    cpi r21, 0b100
+    breq AND_OP
+
+    cpi r21, 0b101
+    breq OR_OP
+
+    cpi r21, 0b110
+    breq SHL
+
+    cpi r21, 0b111
+	breq INCREMENTO
+
+
+CLEAR:
+
+    ldi r22, 0b00000000
+
+    ldi r25, 0b00000000
+
+    rjmp CALC_FLAGS
+
+RESTA:
+
+    mov r22, r17
+
+    sub r22, r18
+
+    andi r22, 0b00000111
+
+    cp r17, r18
+
+    brlo RESTA_BORROW
+
+    ldi r25, 0
+
+    rjmp CALC_FLAGS
+
+
+RESTA_BORROW:
+
+    ldi r25, 1
+
+    rjmp CALC_FLAGS
+
+SUMA:
+
+    mov r22, r17
+
+    add r22, r18
+
+    brcc SUMA_NO_CARRY
+
+    ldi r25, 1
+
+    rjmp SUMA_CONTINUAR
+
+
+SUMA_NO_CARRY:
+
+    ldi r25, 0
+
+
+SUMA_CONTINUAR:
+
+    andi r22, 0b00000111
+
+    rjmp CALC_FLAGS
+
+XOR_OP:
+
+    mov r22, r17
+
+    eor r22, r18
+
+    andi r22, 0b00000111
+
+    ldi r25, 0
+
+    rjmp CALC_FLAGS
+
+AND_OP:
+
+    mov r22, r17
+
+    and r22, r18
+
+    andi r22, 0b00000111
+
+    ldi r25, 0
+
+    rjmp CALC_FLAGS
+
+OR_OP:
+
+    mov r22, r17
+
+    or r22, r18
+
+    andi r22, 0b00000111
+
+    ldi r25, 0
+
+    rjmp CALC_FLAGS
+
+SHL:
+
+    mov r25, r17
+
+    andi r25, 0b00000010
+
+    breq SHL_NO_CARRY
+
+    ldi r25, 1
+
+    rjmp SHL_CONTINUAR
+
+
+SHL_NO_CARRY:
+
+    ldi r25, 0
+
+
+SHL_CONTINUAR:
+
+    mov r22, r17
+
+    lsl r22
+
+    andi r22, 0b00000111
+
+    rjmp CALC_FLAGS
+
+INCREMENTO:
+
+    cpi r17, 0b00000011
+
+    breq INC_CARRY
+
+    ldi r25, 0
+
+    rjmp INC_CONTINUAR
+
+
+INC_CARRY:
+
+    ldi r25, 1
+
+
+INC_CONTINUAR:
+
+    mov r22, r17
+
+    inc r22
+
+    andi r22, 0b00000111
+
+    rjmp CALC_FLAGS
+
+CALC_FLAGS:
+
+    mov r26, r22
+
+    andi r26, 0b00000100
+
+    breq NEGATIVO_NO
+
+    ldi r26, 1
+
+    rjmp CALC_ZERO
+
+
+NEGATIVO_NO:
+
+    ldi r26, 0
+
+CALC_ZERO:
+
+    tst r22
+
+    breq RESULTADO_ZERO
+
+    ldi r27, 0
+
+    rjmp MOSTRAR
+
+
+RESULTADO_ZERO:
+
+    ldi r27, 1
+
+MOSTRAR:
+
+    ldi r23, 0b00000000
+
+; RESULTADO
+
+    mov r24, r22
+
+    andi r24, 0b00000111
+
+    lsl r24
+    lsl r24
+
+    or r23, r24
+
+; CARRY
+
+    tst r25
+
+    breq NO_CARRY
+
+    ori r23, 0b00100000
+
+
+NO_CARRY:
+
+    ; NEGATIVE
+
+    tst r26
+
+    breq NO_NEGATIVE
+
+    ori r23, 0b01000000
+
+
+NO_NEGATIVE:
+
+; ZERO
+
+    tst r27
+
+    breq NO_ZERO
+
+    ori r23, 0b10000000
+
+
+NO_ZERO:
+
+; ACTUALIZAR PORTD
+
+    out PORTD, r23
+
+    rjmp MAIN
