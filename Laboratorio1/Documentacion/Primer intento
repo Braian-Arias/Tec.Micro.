@@ -1,3 +1,5 @@
+//Lavarropas 
+
 // Pulsadores
 const int botonLavado = 2;
 const int botonCentrifugado = 3;
