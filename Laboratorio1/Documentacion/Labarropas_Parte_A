@@ -1,133 +1,117 @@
 //Lavarropas 
 
-// Pulsadores
-const int botonLavado = 2;
-const int botonCentrifugado = 3;
-const int botonSecado = 4;
+.equ PORTB = 0x05
+.equ DDRB  = 0x04
+.equ PIND  = 0x09
+.equ DDRD  = 0x0A
+.equ PORTD = 0x0B
 
-// Puente H - Motor
-const int IN1 = 8;
-const int IN2 = 9;
+.org 0x0000
+    rjmp INICIO
 
-// LEDs indicadores
-const int ledLavado = 10;
-const int ledCentrifugado = 11;
-const int ledSecado = 12;
+INICIO:
+    ; PB0 y PB1 = motor
+    ; PB2, PB3 y PB4 = LEDs
+    ldi r16, 0b00011111
+    out DDRB, r16
 
-void setup() {
+    ; PD2, PD3 y PD4 = botones
+    ldi r16, 0
+    out DDRD, r16
 
-  pinMode(botonLavado, INPUT_PULLUP);
-  pinMode(botonCentrifugado, INPUT_PULLUP);
-  pinMode(botonSecado, INPUT_PULLUP);
+    ; Pull-up botones
+    ldi r16, 0b00011100
+    out PORTD, r16
 
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
+PRINCIPAL:
 
-  pinMode(ledLavado, OUTPUT);
-  pinMode(ledCentrifugado, OUTPUT);
-  pinMode(ledSecado, OUTPUT);
+    sbis PIND, 2
+    rcall LAVADO
 
-  apagarMotor();
-}
+    sbis PIND, 3
+    rcall CENTRIFUGADO
 
-void loop() {
+    sbis PIND, 4
+    rcall SECADO
 
-  // Selección de lavado
-  if (digitalRead(botonLavado) == LOW) {
-    lavado();
-  }
-
-  // Selección de centrifugado
-  if (digitalRead(botonCentrifugado) == LOW) {
-    centrifugado();
-  }
-
-  // SECADO TODAVÍA NO IMPLEMENTADO
-  if (digitalRead(botonSecado) == LOW) {
-    digitalWrite(ledSecado, HIGH);
-
-    delay(1000);
-
-    digitalWrite(ledSecado, LOW);
-  }
-}
+    rjmp PRINCIPAL
 
 
-// =====================================================
-// LAVADO
-// =====================================================
+; -------------------------
+; LAVADO
+; ERROR: hace 3 ciclos
+; debería hacer 5
+; -------------------------
 
-void lavado() {
+LAVADO:
+    sbi PORTB, 2
+    ldi r20, 3
 
-  digitalWrite(ledLavado, HIGH);
+LAV_LOOP:
+    sbi PORTB, 0
+    cbi PORTB, 1
+    rcall DELAY
 
-  // ERROR:
-  // El lavarropa debería repetir 5 veces.
-  // Por ahora solamente repite 3.
+    cbi PORTB, 0
+    rcall DELAY
 
-  for (int i = 0; i < 3; i++) {
+    dec r20
+    brne LAV_LOOP
 
-    girarDerecha();
-
-    // Debería girar 2 segundos
-    // ERROR: actualmente gira solamente 1 segundo
-    delay(1000);
-
-    apagarMotor();
-
-    // Pausa
-    delay(1000);
-  }
-
-  digitalWrite(ledLavado, LOW);
-}
+    cbi PORTB, 2
+    ret
 
 
-// =====================================================
-// CENTRIFUGADO
-// =====================================================
+; -------------------------
+; CENTRIFUGADO
+; ERROR: dura poco tiempo
+; -------------------------
 
-void centrifugado() {
+CENTRIFUGADO:
+    sbi PORTB, 3
+    sbi PORTB, 0
+    cbi PORTB, 1
 
-  digitalWrite(ledCentrifugado, HIGH);
+    rcall DELAY
+    rcall DELAY
 
-  girarDerecha();
-
-  // ERROR:
-  // El centrifugado debería durar hasta 15 segundos.
-  // Actualmente dura solamente 5 segundos.
-
-  delay(5000);
-
-  apagarMotor();
-
-  digitalWrite(ledCentrifugado, LOW);
-}
+    cbi PORTB, 0
+    cbi PORTB, 3
+    ret
 
 
-// =====================================================
-// CONTROL DEL MOTOR
-// =====================================================
+; -------------------------
+; SECADO
+; INCOMPLETO:
+; falta giro izquierdo
+; -------------------------
 
-void girarDerecha() {
+SECADO:
+    sbi PORTB, 4
 
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-}
+    sbi PORTB, 0
+    cbi PORTB, 1
+    rcall DELAY
 
-
-void girarIzquierda() {
-
-  // FUNCIÓN INCOMPLETA
-  // Falta configurar el giro hacia la izquierda.
-
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-}
+    cbi PORTB, 0
+    cbi PORTB, 4
+    ret
 
 
-void apagarMotor() {
+; -------------------------
+; RETARDO
+; -------------------------
 
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-}
+DELAY:
+    ldi r18, 255
+
+D1:
+    ldi r19, 255
+
+D2:
+    dec r19
+    brne D2
+    dec r18
+    brne D1
+
+    ret
