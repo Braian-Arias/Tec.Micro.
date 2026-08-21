@@ -1,0 +1,131 @@
+// Pulsadores
+const int botonLavado = 2;
+const int botonCentrifugado = 3;
+const int botonSecado = 4;
+
+// Puente H - Motor
+const int IN1 = 8;
+const int IN2 = 9;
+
+// LEDs indicadores
+const int ledLavado = 10;
+const int ledCentrifugado = 11;
+const int ledSecado = 12;
+
+void setup() {
+
+  pinMode(botonLavado, INPUT_PULLUP);
+  pinMode(botonCentrifugado, INPUT_PULLUP);
+  pinMode(botonSecado, INPUT_PULLUP);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+
+  pinMode(ledLavado, OUTPUT);
+  pinMode(ledCentrifugado, OUTPUT);
+  pinMode(ledSecado, OUTPUT);
+
+  apagarMotor();
+}
+
+void loop() {
+
+  // Selección de lavado
+  if (digitalRead(botonLavado) == LOW) {
+    lavado();
+  }
+
+  // Selección de centrifugado
+  if (digitalRead(botonCentrifugado) == LOW) {
+    centrifugado();
+  }
+
+  // SECADO TODAVÍA NO IMPLEMENTADO
+  if (digitalRead(botonSecado) == LOW) {
+    digitalWrite(ledSecado, HIGH);
+
+    delay(1000);
+
+    digitalWrite(ledSecado, LOW);
+  }
+}
+
+
+// =====================================================
+// LAVADO
+// =====================================================
+
+void lavado() {
+
+  digitalWrite(ledLavado, HIGH);
+
+  // ERROR:
+  // El lavarropa debería repetir 5 veces.
+  // Por ahora solamente repite 3.
+
+  for (int i = 0; i < 3; i++) {
+
+    girarDerecha();
+
+    // Debería girar 2 segundos
+    // ERROR: actualmente gira solamente 1 segundo
+    delay(1000);
+
+    apagarMotor();
+
+    // Pausa
+    delay(1000);
+  }
+
+  digitalWrite(ledLavado, LOW);
+}
+
+
+// =====================================================
+// CENTRIFUGADO
+// =====================================================
+
+void centrifugado() {
+
+  digitalWrite(ledCentrifugado, HIGH);
+
+  girarDerecha();
+
+  // ERROR:
+  // El centrifugado debería durar hasta 15 segundos.
+  // Actualmente dura solamente 5 segundos.
+
+  delay(5000);
+
+  apagarMotor();
+
+  digitalWrite(ledCentrifugado, LOW);
+}
+
+
+// =====================================================
+// CONTROL DEL MOTOR
+// =====================================================
+
+void girarDerecha() {
+
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+}
+
+
+void girarIzquierda() {
+
+  // FUNCIÓN INCOMPLETA
+  // Falta configurar el giro hacia la izquierda.
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+}
+
+
+void apagarMotor() {
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+}
