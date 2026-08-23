@@ -1,117 +1,291 @@
-//Lavarropas 
-
 .equ PORTB = 0x05
 .equ DDRB  = 0x04
+
 .equ PIND  = 0x09
 .equ DDRD  = 0x0A
 .equ PORTD = 0x0B
 
+
 .org 0x0000
+
     rjmp INICIO
 
+
+; ============================================================
+; CONFIGURACION
+; ============================================================
+
 INICIO:
-    ; PB0 y PB1 = motor
-    ; PB2, PB3 y PB4 = LEDs
+
+    ; PB0 = control motor 1
+    ; PB1 = control motor 2
+    ; PB2 = LED Lavado
+    ; PB3 = LED Centrifugado
+    ; PB4 = LED Secado
+
     ldi r16, 0b00011111
     out DDRB, r16
 
-    ; PD2, PD3 y PD4 = botones
+
+    ; PD2 = boton Lavado
+    ; PD3 = boton Centrifugado
+    ; PD4 = boton Secado
+
     ldi r16, 0
     out DDRD, r16
 
-    ; Pull-up botones
+
+    ; Activar pull-up
     ldi r16, 0b00011100
     out PORTD, r16
 
+
+    ; Motor y LEDs apagados
+    ldi r16, 0
+    out PORTB, r16
+
+
+
+; ============================================================
+; PROGRAMA PRINCIPAL
+; ============================================================
+
 PRINCIPAL:
 
+    ; Boton PD2 -> Lavado
     sbis PIND, 2
     rcall LAVADO
 
+
+    ; Boton PD3 -> Centrifugado
     sbis PIND, 3
     rcall CENTRIFUGADO
 
+
+    ; Boton PD4 -> Secado
     sbis PIND, 4
     rcall SECADO
+
 
     rjmp PRINCIPAL
 
 
-; -------------------------
+
+; ============================================================
 ; LAVADO
-; ERROR: hace 3 ciclos
-; debería hacer 5
-; -------------------------
+;
+; Ahora realiza 5 ciclos.
+;
+; Todavia falta:
+; - ajustar tiempo real a 2 segundos
+; - pausa exacta de 1 segundo
+; - seleccion segun carga
+; ============================================================
 
 LAVADO:
+
+    rcall APAGAR_LEDS
+
+    ; Encender LED Lavado
     sbi PORTB, 2
-    ldi r20, 3
+
+
+    ; Cantidad de ciclos
+    ldi r20, 5
+
 
 LAV_LOOP:
-    sbi PORTB, 0
-    cbi PORTB, 1
+
+    ; Motor gira
+    rcall MOTOR_DERECHA
+
     rcall DELAY
 
-    cbi PORTB, 0
+
+    ; Motor detenido
+    rcall MOTOR_PARAR
+
     rcall DELAY
+
 
     dec r20
     brne LAV_LOOP
 
+
+    ; Apagar LED Lavado
     cbi PORTB, 2
+
+    rcall MOTOR_PARAR
+
     ret
 
 
-; -------------------------
+
+; ============================================================
 ; CENTRIFUGADO
-; ERROR: dura poco tiempo
-; -------------------------
+;
+; Gira continuamente durante un tiempo mayor.
+;
+; Todavia falta ajustar exactamente a 15 segundos
+; y modificar tiempo segun la carga.
+; ============================================================
 
 CENTRIFUGADO:
+
+    rcall APAGAR_LEDS
+
+    ; LED Centrifugado
     sbi PORTB, 3
-    sbi PORTB, 0
-    cbi PORTB, 1
 
+
+    ; Motor encendido
+    rcall MOTOR_DERECHA
+
+
+    ; Tiempo provisional
+    rcall DELAY
+    rcall DELAY
     rcall DELAY
     rcall DELAY
 
-    cbi PORTB, 0
+
+    ; Detener motor
+    rcall MOTOR_PARAR
+
+
+    ; Apagar LED
     cbi PORTB, 3
+
     ret
 
 
-; -------------------------
+
+; ============================================================
 ; SECADO
-; INCOMPLETO:
-; falta giro izquierdo
-; -------------------------
+;
+; Avance:
+; - gira hacia derecha
+; - se detiene
+;
+; PENDIENTE:
+; - giro hacia izquierda
+; - tiempos definitivos
+; ============================================================
 
 SECADO:
+
+    rcall APAGAR_LEDS
+
+    ; LED Secado
     sbi PORTB, 4
 
-    sbi PORTB, 0
-    cbi PORTB, 1
+
+    ; Giro derecha
+    rcall MOTOR_DERECHA
+
+    rcall DELAY
     rcall DELAY
 
-    cbi PORTB, 0
+
+    ; Pausa
+    rcall MOTOR_PARAR
+
+    rcall DELAY
+
+
+    ; =========================================
+    ; PENDIENTE:
+    ; agregar giro hacia la izquierda
+    ; =========================================
+
+
+    ; Apagar LED Secado
     cbi PORTB, 4
+
     ret
 
 
-; -------------------------
-; RETARDO
-; -------------------------
+
+; ============================================================
+; MOTOR HACIA LA DERECHA
+; ============================================================
+
+MOTOR_DERECHA:
+
+    sbi PORTB, 0
+    cbi PORTB, 1
+
+    ret
+
+
+
+; ============================================================
+; MOTOR HACIA LA IZQUIERDA
+;
+; Rutina preparada pero todavia no utilizada
+; en el procedimiento de secado.
+; ============================================================
+
+MOTOR_IZQUIERDA:
+
+    cbi PORTB, 0
+    sbi PORTB, 1
+
+    ret
+
+
+
+; ============================================================
+; MOTOR PARADO
+; ============================================================
+
+MOTOR_PARAR:
+
+    cbi PORTB, 0
+    cbi PORTB, 1
+
+    ret
+
+
+
+; ============================================================
+; APAGAR LEDS DE PROCESO
+; ============================================================
+
+APAGAR_LEDS:
+
+    cbi PORTB, 2
+    cbi PORTB, 3
+    cbi PORTB, 4
+
+    ret
+
+
+
+; ============================================================
+; RETARDO PROVISIONAL
+;
+; Todavia NO representa segundos exactos.
+; Se ajustara en una version posterior.
+; ============================================================
 
 DELAY:
+
     ldi r18, 255
 
+
 D1:
+
     ldi r19, 255
 
+
 D2:
+
     dec r19
     brne D2
+
     dec r18
     brne D1
+
 
     ret
