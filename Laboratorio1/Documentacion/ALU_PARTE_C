@@ -10,7 +10,7 @@ START:
 ; F  = F1 F0
 
 ; inicializar memoria en cero
-; indicar entradas 
+; indicar entradas/salidas 
 ; leer entradas
 ; seleccionar operacion
 ; hacer operación
@@ -40,31 +40,33 @@ RESET:
 
 MAIN:
 
-    in r16, PINB
+    in r16, PINB ;lee estado del puerto B guardado en el 16
 
-    com r16
+    com r16 ; invertir los bits
 
-    mov r17, r16
+    mov r17, r16 ; copia r16 en r17
 
-    andi r17, 0b00000011
+    andi r17, 0b00000011 ; hace una AND para que quede A1A0 en r17
 
-    mov r18, r16
+    mov r18, r16 ; copia r16 en r18
 
-    andi r18, 0b00001100
+    andi r18, 0b00001100 ; aca esta 0000B1B000
 
-    lsr r18
-    lsr r18
+    lsr r18 ; aca 00000B1B00
+    lsr r18 ; 000000B1B0
 
-    mov r19, r16
+    mov r19, r16 ; copia r16 en r19
+
+	; lo mismo que con lo anteriores
 
     andi r19, 0b00110000
 
     lsr r19
     lsr r19
     lsr r19
-    lsr r19
+    lsr r19 ; queda 000000S2S1
 
-    in r20, PINC
+    in r20, PINC ; aca para el S0
 
     com r20
 
