@@ -10,11 +10,6 @@
 
     rjmp INICIO
 
-
-; ============================================================
-; CONFIGURACION
-; ============================================================
-
 INICIO:
 
     ; PB0 = control motor 1
@@ -30,185 +25,361 @@ INICIO:
     ; PD2 = boton Lavado
     ; PD3 = boton Centrifugado
     ; PD4 = boton Secado
+    ; PD5 = seleccion de carga
 
     ldi r16, 0
     out DDRD, r16
 
 
-    ; Activar pull-up
-    ldi r16, 0b00011100
+    ; Pull-up en PD2, PD3, PD4 y PD5
+
+    ldi r16, 0b00111100
     out PORTD, r16
 
 
     ; Motor y LEDs apagados
+
     ldi r16, 0
     out PORTB, r16
 
 
+    ; r21 guarda la carga:
+    ;
+    ; 0 = ligera
+    ; 1 = media
+    ; 2 = completa
 
-; ============================================================
-; PROGRAMA PRINCIPAL
-; ============================================================
+    clr r21
 
 PRINCIPAL:
 
-    ; Boton PD2 -> Lavado
+    ; PD2 -> Lavado
+
     sbis PIND, 2
     rcall LAVADO
 
 
-    ; Boton PD3 -> Centrifugado
+    ; PD3 -> Centrifugado
+
     sbis PIND, 3
     rcall CENTRIFUGADO
 
 
-    ; Boton PD4 -> Secado
+    ; PD4 -> Secado
+
     sbis PIND, 4
     rcall SECADO
+
+
+    ; PD5 -> Cambiar carga
+
+    sbis PIND, 5
+    rcall CAMBIAR_CARGA
 
 
     rjmp PRINCIPAL
 
 
+CAMBIAR_CARGA:
 
-; ============================================================
-; LAVADO
-;
-; Ahora realiza 5 ciclos.
-;
-; Todavia falta:
-; - ajustar tiempo real a 2 segundos
-; - pausa exacta de 1 segundo
-; - seleccion segun carga
-; ============================================================
+    ldi r24, LOW(30)
+    ldi r25, HIGH(30)
+    rcall DELAY_MS
+
+    sbic PIND, 5
+    ret
+
+
+    ; Cambiar carga
+
+    inc r21
+
+
+    ; Si llegó a 3, volver a 0
+
+    cpi r21, 3
+    brlo CARGA_OK
+
+    clr r21
+
+
+CARGA_OK:
+
+    ; Esperar que se suelte el boton
+
+ESPERAR_CARGA:
+
+    sbis PIND, 5
+    rjmp ESPERAR_CARGA
+
+
+    ldi r24, LOW(30)
+    ldi r25, HIGH(30)
+    rcall DELAY_MS
+
+    ret
 
 LAVADO:
 
     rcall APAGAR_LEDS
 
-    ; Encender LED Lavado
+    ; LED Lavado
+
     sbi PORTB, 2
 
 
-    ; Cantidad de ciclos
-    ldi r20, 5
+    ; 5 ciclos
 
+    ldi r20, 5
 
 LAV_LOOP:
 
-    ; Motor gira
     rcall MOTOR_DERECHA
 
-    rcall DELAY
+
+    ; Seleccionar tiempo segun carga
+
+    cpi r21, 0
+    breq LAV_GIRO_LIGERA
+
+    cpi r21, 1
+    breq LAV_GIRO_MEDIA
+
+    rjmp LAV_GIRO_COMPLETA
 
 
-    ; Motor detenido
+LAV_GIRO_LIGERA:
+
+    ldi r24, LOW(2000)
+    ldi r25, HIGH(2000)
+    rcall DELAY_MS
+
+    rjmp LAV_PAUSA
+
+
+LAV_GIRO_MEDIA:
+
+    ldi r24, LOW(3000)
+    ldi r25, HIGH(3000)
+    rcall DELAY_MS
+
+    rjmp LAV_PAUSA
+
+
+LAV_GIRO_COMPLETA:
+
+    ldi r24, LOW(4000)
+    ldi r25, HIGH(4000)
+    rcall DELAY_MS
+
+LAV_PAUSA:
+
     rcall MOTOR_PARAR
 
-    rcall DELAY
+    cpi r21, 0
+    breq PAUSA_LIGERA
 
+    cpi r21, 1
+    breq PAUSA_MEDIA
+
+    rjmp PAUSA_COMPLETA
+
+; Ligera = 1 segundo
+
+PAUSA_LIGERA:
+
+    ldi r24, LOW(1000)
+    ldi r25, HIGH(1000)
+    rcall DELAY_MS
+
+    rjmp LAV_SIGUIENTE
+
+; Media = 2 segundos
+
+PAUSA_MEDIA:
+
+    ldi r24, LOW(2000)
+    ldi r25, HIGH(2000)
+    rcall DELAY_MS
+
+    rjmp LAV_SIGUIENTE
+
+; Completa = 3 segundos
+
+PAUSA_COMPLETA:
+
+    ldi r24, LOW(3000)
+    ldi r25, HIGH(3000)
+    rcall DELAY_MS
+
+LAV_SIGUIENTE:
 
     dec r20
     brne LAV_LOOP
 
 
-    ; Apagar LED Lavado
-    cbi PORTB, 2
-
     rcall MOTOR_PARAR
+
+    cbi PORTB, 2
 
     ret
 
-
-
-; ============================================================
-; CENTRIFUGADO
-;
-; Gira continuamente durante un tiempo mayor.
-;
-; Todavia falta ajustar exactamente a 15 segundos
-; y modificar tiempo segun la carga.
-; ============================================================
 
 CENTRIFUGADO:
 
     rcall APAGAR_LEDS
 
     ; LED Centrifugado
+
     sbi PORTB, 3
 
 
-    ; Motor encendido
+    ; Motor continuo
+
     rcall MOTOR_DERECHA
 
 
-    ; Tiempo provisional
-    rcall DELAY
-    rcall DELAY
-    rcall DELAY
-    rcall DELAY
+    ; Seleccionar tiempo
+
+    cpi r21, 0
+    breq CENT_LIGERA
+
+    cpi r21, 1
+    breq CENT_MEDIA
+
+    rjmp CENT_COMPLETA
 
 
-    ; Detener motor
+CENT_LIGERA:
+
+    ldi r24, LOW(15000)
+    ldi r25, HIGH(15000)
+    rcall DELAY_MS
+
+    rjmp CENT_FIN
+
+
+CENT_MEDIA:
+
+    ldi r24, LOW(18000)
+    ldi r25, HIGH(18000)
+    rcall DELAY_MS
+
+    rjmp CENT_FIN
+
+
+CENT_COMPLETA:
+
+    ldi r24, LOW(21000)
+    ldi r25, HIGH(21000)
+    rcall DELAY_MS
+
+
+CENT_FIN:
+
     rcall MOTOR_PARAR
 
-
-    ; Apagar LED
     cbi PORTB, 3
 
     ret
-
-
-
-; ============================================================
-; SECADO
-;
-; Avance:
-; - gira hacia derecha
-; - se detiene
-;
-; PENDIENTE:
-; - giro hacia izquierda
-; - tiempos definitivos
-; ============================================================
 
 SECADO:
 
     rcall APAGAR_LEDS
 
     ; LED Secado
+
     sbi PORTB, 4
 
 
-    ; Giro derecha
+    ; Girar derecha
+
     rcall MOTOR_DERECHA
 
-    rcall DELAY
-    rcall DELAY
 
+    cpi r21, 0
+    breq SEC_GIRO_LIGERA
 
-    ; Pausa
+    cpi r21, 1
+    breq SEC_GIRO_MEDIA
+
+    rjmp SEC_GIRO_COMPLETA
+
+; Ligera = 5 segundos
+
+SEC_GIRO_LIGERA:
+
+    ldi r24, LOW(5000)
+    ldi r25, HIGH(5000)
+    rcall DELAY_MS
+
+    rjmp SEC_PAUSA
+
+; Media = 7 segundos
+
+SEC_GIRO_MEDIA:
+
+    ldi r24, LOW(7000)
+    ldi r25, HIGH(7000)
+    rcall DELAY_MS
+
+    rjmp SEC_PAUSA
+
+SEC_GIRO_COMPLETA:
+
+    ldi r24, LOW(9000)
+    ldi r25, HIGH(9000)
+    rcall DELAY_MS
+
+SEC_PAUSA:
+
     rcall MOTOR_PARAR
 
-    rcall DELAY
+
+    cpi r21, 0
+    breq SEC_PAUSA_LIGERA
+
+    cpi r21, 1
+    breq SEC_PAUSA_MEDIA
+
+    rjmp SEC_PAUSA_COMPLETA
+
+; Ligera = 3 segundos
+
+SEC_PAUSA_LIGERA:
+
+    ldi r24, LOW(3000)
+    ldi r25, HIGH(3000)
+    rcall DELAY_MS
+
+    rjmp SECADO_FIN
+
+; Media = 5 segundos
+
+SEC_PAUSA_MEDIA:
+
+    ldi r24, LOW(5000)
+    ldi r25, HIGH(5000)
+    rcall DELAY_MS
+
+    rjmp SECADO_FIN
+
+; Completa = 7 segundos
+
+SEC_PAUSA_COMPLETA:
+
+    ldi r24, LOW(7000)
+    ldi r25, HIGH(7000)
+    rcall DELAY_MS
 
 
-    ; =========================================
-    ; PENDIENTE:
-    ; agregar giro hacia la izquierda
-    ; =========================================
+SECADO_FIN:
 
+    rcall MOTOR_PARAR
 
-    ; Apagar LED Secado
     cbi PORTB, 4
 
     ret
-
-
-
-; ============================================================
-; MOTOR HACIA LA DERECHA
-; ============================================================
 
 MOTOR_DERECHA:
 
@@ -217,14 +388,7 @@ MOTOR_DERECHA:
 
     ret
 
-
-
-; ============================================================
-; MOTOR HACIA LA IZQUIERDA
-;
-; Rutina preparada pero todavia no utilizada
-; en el procedimiento de secado.
-; ============================================================
+; Aun falta en Motor_izquierda
 
 MOTOR_IZQUIERDA:
 
@@ -233,24 +397,12 @@ MOTOR_IZQUIERDA:
 
     ret
 
-
-
-; ============================================================
-; MOTOR PARADO
-; ============================================================
-
 MOTOR_PARAR:
 
     cbi PORTB, 0
     cbi PORTB, 1
 
     ret
-
-
-
-; ============================================================
-; APAGAR LEDS DE PROCESO
-; ============================================================
 
 APAGAR_LEDS:
 
@@ -260,32 +412,32 @@ APAGAR_LEDS:
 
     ret
 
+DELAY_MS:
+
+    push r30
+    push r31
+
+DELAY_MS_LOOP:
+
+    ; Aproximadamente 1 ms
+
+    ldi r30, LOW(3996)
+    ldi r31, HIGH(3996)
 
 
-; ============================================================
-; RETARDO PROVISIONAL
-;
-; Todavia NO representa segundos exactos.
-; Se ajustara en una version posterior.
-; ============================================================
+DELAY_1MS_LOOP:
 
-DELAY:
-
-    ldi r18, 255
+    sbiw r30, 1
+    brne DELAY_1MS_LOOP
 
 
-D1:
+    ; Restar 1 ms al tiempo total
 
-    ldi r19, 255
+    sbiw r24, 1
+    brne DELAY_MS_LOOP
 
 
-D2:
-
-    dec r19
-    brne D2
-
-    dec r18
-    brne D1
-
+    pop r31
+    pop r30
 
     ret
