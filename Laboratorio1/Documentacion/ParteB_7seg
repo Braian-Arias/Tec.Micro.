@@ -4,20 +4,30 @@
     rjmp Inicio
 
 Inicio:
+
+    ;----------------------------------------------------
+    ; Configurar PORTD como salida led
+    ;----------------------------------------------------
+
     ; Configurar salidas
     ldi r16, 0b11111111   ; PD1..PD7 como salida
     out DDRD, r16
-
-    ldi r17, 0b00000001   ; PB0 y PB1 como salida
-    out DDRB, r17
-
-;boton
+    ;----------------------------------------------------
+    ; Configurar PORTC como entrada boton
+    ;----------------------------------------------------
 
     ldi r22, 0x00             ; Puerto C como entrada
     out DDRC, r22
+
+    ; Pull-up interno en PC0, PC1 y PC2
     ldi r22, (1<<PORTC0)|(1<<PORTC1)|(1<<PORTC2)
     out PORTC, r22
 	ldi r16, 0
+    ;----------------------------------------------------
+    ; Configurar contador en cero
+    ;----------------------------------------------------
+    ldi r17, 0x00
+
 main_loop:
     mov r19, r17
 
@@ -28,7 +38,11 @@ main_loop:
 	rcall delay
 	rcall delay
     rjmp main_loop
-	
+
+    ;----------------------------------------------------
+    ; MENU1 AUMENTA EL NUMERO 1 -> 2
+    ;----------------------------------------------------
+
 	menu_1:
 	mov r18, r19
     ldi r16, 0 ;0
@@ -66,7 +80,7 @@ main_loop:
 ldi r16,0b00111111  ;0
     out PORTD, r16
 	ldi r17, 0
-	sbis PINC, PC2
+	sbis PINC, PC2 ; CONTINUAMENTE SE FIJA SI SE TIENE QUE REINICIAR
     rjmp main_loop 
 	rjmp N0
 	N1:
@@ -108,7 +122,7 @@ ldi r16,0b01101101;5
 ldi r16,0b01111101;6
     out PORTD, r16
 	ldi r17,  6
-		sbis PINC, PC2
+	sbis PINC, PC2
     rjmp main_loop 
 	rjmp N6
 	N7:
@@ -132,6 +146,10 @@ ldi r16,0b01101111;9
 	sbis PINC, PC2
     rjmp main_loop 
 	rjmp N9
+
+    ;----------------------------------------------------
+    ; MENU2 DISMINUYE EL NUMERO 2 -> 1
+    ;----------------------------------------------------
 
 	menu_2:
 	mov r18, r19
@@ -214,7 +232,7 @@ ldi r16,0b01101101;5
 ldi r16,0b01111101;6
     out PORTD, r16
 	ldi r17,  6
-		sbis PINC, PC2
+	sbis PINC, PC2
     rjmp main_loop 
 	rjmp F6
 	F7:
@@ -239,6 +257,9 @@ ldi r16,0b01101111;9
     rjmp main_loop 
 	rjmp F9
 
+;========================================================
+; DELAY de aproximadamente 1 segundo
+;========================================================
 	Delay:
     ldi  r19, 234
     ldi  r20, 200
