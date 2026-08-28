@@ -6,78 +6,79 @@
 .equ PORTD = 0x0B
 
 
-.org 0x0000
+.cseg
 
+.org 0x0000
     rjmp INICIO
+
 
 INICIO:
 
-    ; PB0 = control motor 1
-    ; PB1 = control motor 2
-    ; PB2 = LED Lavado
-    ; PB3 = LED Centrifugado
-    ; PB4 = LED Secado
+    ; Configurar pila
 
-    ldi r16, 0b00011111
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
+
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
+
+    ;-------------------------------------------------------------
+    ; PORTB
+    ; PB0 motor
+    ; PB1 motor
+    ; PB2 LED lavado
+    ; PB3 LED centrifugado
+    ; PB4 LED secado
+    ; PB5 LED listo
+    ; -------------------------------------------------------------
+
+    ldi r16, 0b00111111
     out DDRB, r16
 
+    ldi r16, 0
+    out PORTB, r16
 
-    ; PD2 = boton Lavado
-    ; PD3 = boton Centrifugado
-    ; PD4 = boton Secado
-    ; PD5 = seleccion de carga
+    ;-------------------------------------------------------------
+    ; PORTC
+    ; PC0 LED fin
+    ; PC1 carga ligera
+    ; PC2 carga media
+    ; PC3 carga pesada
+    ; -----------------------------------------------------------
+
+    ldi r16, 0b00001111
+    out DDRC, r16
+
+    ldi r16, 0
+    out PORTC, r16
+
+
+    ; -----------------------------------------------------------
+    ; PORTD
+    ; PD2 inicio
+    ; PD3 seleccion carga
+    ; PD4 puerta
+    ; PD5 sensor agua
+    ; ---------------------------------------------------------
 
     ldi r16, 0
     out DDRD, r16
 
 
-    ; Pull-up en PD2, PD3, PD4 y PD5
+    ; Pull-up PD2-PD5
 
     ldi r16, 0b00111100
     out PORTD, r16
 
 
-    ; Motor y LEDs apagados
-
-    ldi r16, 0
-    out PORTB, r16
-
-
-    ; r21 guarda la carga:
-    ;
-    ; 0 = ligera
-    ; 1 = media
-    ; 2 = completa
+    ; Carga inicial = ligera
 
     clr r21
 
-PRINCIPAL:
-
-    ; PD2 -> Lavado
-
-    sbis PIND, 2
-    rcall LAVADO
+    rcall MOSTRAR_CARGA
 
 
-    ; PD3 -> Centrifugado
-
-    sbis PIND, 3
-    rcall CENTRIFUGADO
-
-
-    ; PD4 -> Secado
-
-    sbis PIND, 4
-    rcall SECADO
-
-
-    ; PD5 -> Cambiar carga
-
-    sbis PIND, 5
-    rcall CAMBIAR_CARGA
-
-
-    rjmp PRINCIPAL
+    ; Lavadora lista
 
 
 CAMBIAR_CARGA:
@@ -86,16 +87,18 @@ CAMBIAR_CARGA:
     ldi r25, HIGH(30)
     rcall DELAY_MS
 
-    sbic PIND, 5
+    ; Si ya se soltó, salir
+
+    sbic PIND, 3
     ret
 
 
     ; Cambiar carga
+    ; 0 ligera
+    ; 1 media
+    ; 2 pesada
 
     inc r21
-
-
-    ; Si llegó a 3, volver a 0
 
     cpi r21, 3
     brlo CARGA_OK
@@ -105,25 +108,128 @@ CAMBIAR_CARGA:
 
 CARGA_OK:
 
-    ; Esperar que se suelte el boton
+    rcall MOSTRAR_CARGA
+
 
 ESPERAR_CARGA:
 
-    sbis PIND, 5
+    sbis PIND, 3
     rjmp ESPERAR_CARGA
 
 
     ldi r24, LOW(30)
+
+MOSTRAR_CARGA:
+
+    ; Apagar los tres LEDs
+
+    cbi PORTC, 1
+    cbi PORTC, 2
+    cbi PORTC, 3
+
+
+    ; Carga ligera
+
+    cpi r21, 0
+    brne VER_MEDIA
+
+    sbi PORTC, 1
+    ret
+
+
+VER_MEDIA:
+
+    cpi r21, 1
+    brne VER_PESADA
+
+    sbi PORTC, 2
+    ret
+
+
+VER_PESADA:
+
+    sbi PORTC, 3
+
+    ret
     ldi r25, HIGH(30)
     rcall DELAY_MS
 
     ret
 
+    sbi PORTB, 5
+
+
+PRINCIPAL:
+
+    ; PD3 = cambiar carga
+
+    sbis PIND, 3
+    rcall CAMBIAR_CARGA
+
+    ; PD2 = iniciar ciclo
+
+    sbis PIND, 2
+    rcall INICIAR_CICLO
+
+    rjmp PRINCIPAL
+
+INICIAR_CICLO:
+
+    ldi r24, LOW(30)
+    ldi r25, HIGH(30)
+    rcall DELAY_MS
+
+    ; Confirmar que sigue presionado
+
+    sbic PIND, 2
+    ret
+
+ESPERAR_INICIO:
+
+    sbis PIND, 2
+    rjmp ESPERAR_INICIO
+
+VERIFICAR_PUERTA:
+
+    ; Si PD4 = 0, la puerta esta cerrada
+
+    sbic PIND, 4
+    rjmp PUERTA_ABIERTA
+
+
+    ; Puerta cerrada
+    ; continuar
+
+    rjmp ESPERAR_AGUA
+
+
+PUERTA_ABIERTA:
+
+    ; Volver al estado listo
+
+    sbi PORTB, 5
+
+    ret
+
+    rcall LAVADO
+
+    rcall CENTRIFUGADO
+
+    rcall SECADO
+
+    rcall FIN_PROCESO
+
+    ret
+
+;-------------------------------------------------------------------------------------------------------------
+;Intrucciones que tiene que hacer para que parezca una verdadera lavadora automatica
+;-------------------------------------------------------------------------------------------------------------
+
 LAVADO:
 
-    rcall APAGAR_LEDS
+    rcall APAGAR_LEDS_PROCESO
 
-    ; LED Lavado
+    ; LED lavado
 
     sbi PORTB, 2
 
@@ -132,12 +238,11 @@ LAVADO:
 
     ldi r20, 5
 
+
 LAV_LOOP:
 
     rcall MOTOR_DERECHA
 
-
-    ; Seleccionar tiempo segun carga
 
     cpi r21, 0
     breq LAV_GIRO_LIGERA
@@ -145,101 +250,15 @@ LAV_LOOP:
     cpi r21, 1
     breq LAV_GIRO_MEDIA
 
-    rjmp LAV_GIRO_COMPLETA
-
-
-LAV_GIRO_LIGERA:
-
-    ldi r24, LOW(2000)
-    ldi r25, HIGH(2000)
-    rcall DELAY_MS
-
-    rjmp LAV_PAUSA
-
-
-LAV_GIRO_MEDIA:
-
-    ldi r24, LOW(3000)
-    ldi r25, HIGH(3000)
-    rcall DELAY_MS
-
-    rjmp LAV_PAUSA
-
-
-LAV_GIRO_COMPLETA:
-
-    ldi r24, LOW(4000)
-    ldi r25, HIGH(4000)
-    rcall DELAY_MS
-
-LAV_PAUSA:
-
-    rcall MOTOR_PARAR
-
-    cpi r21, 0
-    breq PAUSA_LIGERA
-
-    cpi r21, 1
-    breq PAUSA_MEDIA
-
-    rjmp PAUSA_COMPLETA
-
-; Ligera = 1 segundo
-
-PAUSA_LIGERA:
-
-    ldi r24, LOW(1000)
-    ldi r25, HIGH(1000)
-    rcall DELAY_MS
-
-    rjmp LAV_SIGUIENTE
-
-; Media = 2 segundos
-
-PAUSA_MEDIA:
-
-    ldi r24, LOW(2000)
-    ldi r25, HIGH(2000)
-    rcall DELAY_MS
-
-    rjmp LAV_SIGUIENTE
-
-; Completa = 3 segundos
-
-PAUSA_COMPLETA:
-
-    ldi r24, LOW(3000)
-    ldi r25, HIGH(3000)
-    rcall DELAY_MS
-
-LAV_SIGUIENTE:
-
-    dec r20
-    brne LAV_LOOP
-
-
-    rcall MOTOR_PARAR
-
-    cbi PORTB, 2
-
-    ret
-
+    rjmp LAV_GIRO_PESADA
 
 CENTRIFUGADO:
 
-    rcall APAGAR_LEDS
-
-    ; LED Centrifugado
+    rcall APAGAR_LEDS_PROCESO
 
     sbi PORTB, 3
 
-
-    ; Motor continuo
-
     rcall MOTOR_DERECHA
-
-
-    ; Seleccionar tiempo
 
     cpi r21, 0
     breq CENT_LIGERA
@@ -247,197 +266,4 @@ CENTRIFUGADO:
     cpi r21, 1
     breq CENT_MEDIA
 
-    rjmp CENT_COMPLETA
-
-
-CENT_LIGERA:
-
-    ldi r24, LOW(15000)
-    ldi r25, HIGH(15000)
-    rcall DELAY_MS
-
-    rjmp CENT_FIN
-
-
-CENT_MEDIA:
-
-    ldi r24, LOW(18000)
-    ldi r25, HIGH(18000)
-    rcall DELAY_MS
-
-    rjmp CENT_FIN
-
-
-CENT_COMPLETA:
-
-    ldi r24, LOW(21000)
-    ldi r25, HIGH(21000)
-    rcall DELAY_MS
-
-
-CENT_FIN:
-
-    rcall MOTOR_PARAR
-
-    cbi PORTB, 3
-
-    ret
-
-SECADO:
-
-    rcall APAGAR_LEDS
-
-    ; LED Secado
-
-    sbi PORTB, 4
-
-
-    ; Girar derecha
-
-    rcall MOTOR_DERECHA
-
-
-    cpi r21, 0
-    breq SEC_GIRO_LIGERA
-
-    cpi r21, 1
-    breq SEC_GIRO_MEDIA
-
-    rjmp SEC_GIRO_COMPLETA
-
-; Ligera = 5 segundos
-
-SEC_GIRO_LIGERA:
-
-    ldi r24, LOW(5000)
-    ldi r25, HIGH(5000)
-    rcall DELAY_MS
-
-    rjmp SEC_PAUSA
-
-; Media = 7 segundos
-
-SEC_GIRO_MEDIA:
-
-    ldi r24, LOW(7000)
-    ldi r25, HIGH(7000)
-    rcall DELAY_MS
-
-    rjmp SEC_PAUSA
-
-SEC_GIRO_COMPLETA:
-
-    ldi r24, LOW(9000)
-    ldi r25, HIGH(9000)
-    rcall DELAY_MS
-
-SEC_PAUSA:
-
-    rcall MOTOR_PARAR
-
-
-    cpi r21, 0
-    breq SEC_PAUSA_LIGERA
-
-    cpi r21, 1
-    breq SEC_PAUSA_MEDIA
-
-    rjmp SEC_PAUSA_COMPLETA
-
-; Ligera = 3 segundos
-
-SEC_PAUSA_LIGERA:
-
-    ldi r24, LOW(3000)
-    ldi r25, HIGH(3000)
-    rcall DELAY_MS
-
-    rjmp SECADO_FIN
-
-; Media = 5 segundos
-
-SEC_PAUSA_MEDIA:
-
-    ldi r24, LOW(5000)
-    ldi r25, HIGH(5000)
-    rcall DELAY_MS
-
-    rjmp SECADO_FIN
-
-; Completa = 7 segundos
-
-SEC_PAUSA_COMPLETA:
-
-    ldi r24, LOW(7000)
-    ldi r25, HIGH(7000)
-    rcall DELAY_MS
-
-
-SECADO_FIN:
-
-    rcall MOTOR_PARAR
-
-    cbi PORTB, 4
-
-    ret
-
-MOTOR_DERECHA:
-
-    sbi PORTB, 0
-    cbi PORTB, 1
-
-    ret
-
-; Aun falta en Motor_izquierda
-
-MOTOR_IZQUIERDA:
-
-    cbi PORTB, 0
-    sbi PORTB, 1
-
-    ret
-
-MOTOR_PARAR:
-
-    cbi PORTB, 0
-    cbi PORTB, 1
-
-    ret
-
-APAGAR_LEDS:
-
-    cbi PORTB, 2
-    cbi PORTB, 3
-    cbi PORTB, 4
-
-    ret
-
-DELAY_MS:
-
-    push r30
-    push r31
-
-DELAY_MS_LOOP:
-
-    ; Aproximadamente 1 ms
-
-    ldi r30, LOW(3996)
-    ldi r31, HIGH(3996)
-
-
-DELAY_1MS_LOOP:
-
-    sbiw r30, 1
-    brne DELAY_1MS_LOOP
-
-
-    ; Restar 1 ms al tiempo total
-
-    sbiw r24, 1
-    brne DELAY_MS_LOOP
-
-
-    pop r31
-    pop r30
-
-    ret
+    rjmp CENT_PESADA
