@@ -267,3 +267,34 @@ CENTRIFUGADO:
     breq CENT_MEDIA
 
     rjmp CENT_PESADA
+
+MOTOR_DERECHA:
+
+    sbi PORTB, 0
+    cbi PORTB, 1
+
+    ret
+
+
+MOTOR_IZQUIERDA:
+
+    cbi PORTB, 0
+    sbi PORTB, 1
+
+    ret
+
+
+MOTOR_PARAR:
+
+    cbi PORTB, 0
+    cbi PORTB, 1
+
+    ret
+
+APAGAR_LEDS_PROCESO:
+
+    cbi PORTB, 2
+    cbi PORTB, 3
+    cbi PORTB, 4
+
+    ret
