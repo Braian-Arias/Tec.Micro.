@@ -1,1 +1,144 @@
+; AssemblerApplication3.asm
+; Created: 30/8/2026 16:13:54
+; Author : User
+; Replace with your application code
+.include "m328pdef.inc"
 
+.org 0x0000
+    rjmp INICIO
+
+INICIO:
+
+    ; Configurar Stack
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
+
+    ; Configurar PB5 como salida
+    ldi r16, (1<<DDB5)
+    out DDRB, r16
+
+    ; Configurar PORTD como entrada
+    ldi r16, 0x00
+    out DDRD, r16
+
+    ; Pull-up en PD3 y PD5
+    ldi r17, (1<<PORTD3)|(1<<PORTD5)
+    out PORTD, r17
+
+	; CONTADOR R20 = tiempo en segundos tiempo inicial = 1 segundo
+    ldi r20, 1
+
+;Inicio configuración timer 1
+    ldi r16, 0
+    sts TCCR1A, r16
+    ldi r16, (1<<CS12)     ; Prescaler = 256
+    sts TCCR1B, r16
+    ldi r16, 0             ; Timer1 C
+    sts TCCR1C, r16
+    ldi r16, 0             ; Sin interrupciones
+    sts TIMSK1, r16
+    ldi r16, HIGH(3036)    ; Cargar 3036 en TCNT1
+    sts TCNT1H, r16
+    ldi r16, LOW(3036)
+    sts TCNT1L, r16
+;Fin de configuracion timer 1
+    SEI
+;Prueba
+;	    sbi PORTB, PORTB5
+;		rcall RETARDO1S
+;		cbi PORTB, PORTB5
+;		rcall RETARDO1S
+MENU:
+
+    sbic PIND, PD3
+    rjmp REVISAR_AUMENTAR
+
+    sbic PIND, PD5
+    rjmp REVISAR_DISMINUIR
+
+	rjmp MENU
+
+;================================================
+; AUMENTAR
+;================================================
+REVISAR_AUMENTAR:
+    inc r20    ; Aumentar contador
+
+    ; Esperar que se suelte PD3
+ESPERA_AUMENTAR:
+	sbi PORTB, PORTB5
+	rcall RETARDO1S
+	cbi PORTB, PORTB5
+	rcall RETARDO1S
+
+	sbic PIND, PD5
+	rjmp TERMINAR_MENU
+    sbic PIND, PD3
+    rjmp ESPERA_AUMENTAR
+    rjmp MENU
+
+;================================================
+; DISMINUIR
+;================================================
+REVISAR_DISMINUIR:
+
+    ; No permitir bajar de 1
+    cpi r20, 2
+    breq ESPERA_DISMINUIR
+    dec r20    ; Disminuir contador
+
+; Esperar que se suelte PD5
+ESPERA_DISMINUIR:
+	sbic PIND, PD3
+	rjmp TERMINAR_MENU
+    sbic PIND, PD5 ;presion lee abajo
+    rjmp ESPERA_DISMINUIR
+    rjmp MENU
+;================================================
+TERMINAR_MENU:
+
+    sbi PORTB, PORTB5
+    mov r21, r20
+
+ENCENDIDO:
+
+    rcall RETARDO1S
+    dec r21
+    brne ENCENDIDO
+
+;================================================
+; APAGAR LED
+;================================================
+
+    cbi PORTB, PORTB5
+    mov r21, r20
+
+
+APAGADO:
+
+    rcall RETARDO1S
+    dec r21
+    brne APAGADO
+	
+    ; Volver al menú
+    rjmp MENU
+;================================================
+RETARDO1S:
+   SBIS TIFR1, TOV1
+   RJMP RETARDO1S
+   SBI TIFR1, TOV1 
+   LDI R16, HIGH (3036) 
+   STS TCNT1H, R16
+   LDI R16, LOW (3036) 
+   STS TCNT1L, R16
+   RET
+;================================================
+ESPERA_BOTONES:
+
+    sbic PIND, PD3
+    rjmp ESPERA_BOTONES
+
+    sbic PIND, PD5
+    rjmp ESPERA_BOTONES
