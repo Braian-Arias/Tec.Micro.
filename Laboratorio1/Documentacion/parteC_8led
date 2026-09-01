@@ -48,17 +48,22 @@ Inicio:
     ; Comenzar en secuencia 1 y off
     ;----------------------------------------------------
 
-    ldi SEQ, 1
+    ldi SEQ, 0
 
     ; Apagar LEDs
     ldi LED, 0
     out PORTD, LED
+BUSCAR_BOTON2:
+    sbis PINC, PC0
+    rjmp SIGUIENTE
 
+    sbis PINC, PC1
+    rjmp ANTERIOR
+
+    sbis PINC, PC2
+    rjmp RESET_SEC
+	rjmp BUSCAR_BOTON2 ;para que se mantenga en 0
 MAIN:
-    ;----------------------------------------------------
-    ; Elegir secuencia
-    ;----------------------------------------------------
-
     cpi SEQ, 1
     breq SEC1
 	rjmp BUSCAR_BOTON
@@ -86,17 +91,12 @@ MAIN:
 	rjmp BUSCAR_BOTON
 
     rjmp MAIN
-
-
 ;========================================================
 ; SECUENCIA 1
-;
 ; TODOS ON 1 SEGUNDO
 ; TODOS OFF 1 SEGUNDO
 ;========================================================
-
 SEC1:
-
     ; todos ON
     ldi LED, 0b11111111
     out PORTD, LED
@@ -112,17 +112,12 @@ SEC1:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC1
-
-
 ;========================================================
 ; SECUENCIA 2
-;
 ; TODOS ON 2 SEGUNDOS
 ; TODOS OFF 2 SEGUNDOS
 ;========================================================
-
 SEC2:
-
     ; todos ON
     ldi LED, 0b11111111
     out PORTD, LED
@@ -142,22 +137,16 @@ SEC2:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC2
-
-
 ;========================================================
 ; SECUENCIA 3
-;
 ; LED 1-4 ON
 ; LED 5-8 OFF
 ; 2 SEGUNDOS
-;
 ; LED 1-4 OFF
 ; LED 5-8 ON
 ; 2 SEGUNDOS
 ;========================================================
-
 SEC3:
-
     ; LED 1-4 ON
     ldi LED, 0b00001111
     out PORTD, LED
@@ -178,15 +167,11 @@ SEC3:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC3
-
 ;========================================================
 ; SECUENCIA 4
-;
 ; INVERSA DE SEC3
 ;========================================================
-
 SEC4:
-
     ; LED 1-4 OFF
     ; LED 5-8 ON
     ldi LED, 0b11110000
@@ -208,7 +193,7 @@ SEC4:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC4
-
+;lo tubimos que acercar porque se rompianuestra solucion dividir el menu en 2
 menu1:
     cpi SEQ, 6
     breq SEC6
@@ -220,20 +205,13 @@ menu1:
 	ret
 ;========================================================
 ; SECUENCIA 5
-;
 ; LED 1-2 ON
 ; LED 3-4 OFF
 ; LED 5-6 ON
 ; LED 7-8 OFF
-;
-; 2 SEGUNDOS
-;
-; TODOS OFF
-; 2 SEGUNDOS
+; PRENDE Y APAGA
 ;========================================================
-
 SEC5:
-
     ldi LED, 0b00110011
     out PORTD, LED
 
@@ -252,19 +230,14 @@ SEC5:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC5
-
-
 ;========================================================
 ; SECUENCIA 6
-;
 ; INVERSA DE SEC5
-;
 ; LED 1-2 OFF
 ; LED 3-4 ON
 ; LED 5-6 OFF
 ; LED 7-8 ON
 ;========================================================
-
 SEC6:
 
     ldi LED, 0b11001100
@@ -285,22 +258,16 @@ SEC6:
 	rjmp BUSCAR_BOTON
 
     rjmp SEC6
-
-
 ;========================================================
 ; SECUENCIA 7
-;
 ; COMIENZA TODO APAGADO
-;
 ; LED1
 ; LED1+LED2
 ; LED1+LED2+LED3
 ; ...
 ; TODOS ENCENDIDOS
 ;========================================================
-
 SEC7:
-
     ; comenzar apagado
     ldi LED, 0
     out PORTD, LED
@@ -344,21 +311,11 @@ SEC7:
     ori LED, 0b10000000
     out PORTD, LED
 	rcall Delay
-
-SEC7_FIN:
-
-    ; revisar botones
-    sbis PINC, PC0
-    rjmp SIGUIENTE
-
-    sbis PINC, PC1
-    rjmp ANTERIOR
-
-    sbis PINC, PC2
-    rjmp RESET_SEC
-
-    rjmp SEC7_FIN
-
+	rjmp BUSCAR_BOTON
+    rjmp SEC7
+;========================================================
+; BUSCAR BOTÓN
+;========================================================
 BUSCAR_BOTON:
     sbis PINC, PC0
     rjmp SIGUIENTE
@@ -369,78 +326,54 @@ BUSCAR_BOTON:
     sbis PINC, PC2
     rjmp RESET_SEC
 	ret
-
-
 ;========================================================
-; BOTÓN SIGUIENTE
-; PC0
+; BOTÓN SIGUIENTE PC0
 ;========================================================
-
 SIGUIENTE:
-
     inc SEQ
 
     cpi SEQ, 8
-    brne SIG_FIN
     ldi SEQ, 1
-
-SIG_FIN:
     ; esperar que se suelte el botón
 ESPERA_PC0:
     sbis PINC, PC0
     rjmp ESPERA_PC0
 
     rjmp MAIN
-
-
 ;========================================================
-; BOTÓN ANTERIOR
-; PC1
+; BOTÓN ANTERIOR PC1
 ;========================================================
-
 ANTERIOR:
+    cpi SEQ, 0 ; si es cero salta se repite por el primer 0
+    ldi SEQ, 7
 
     dec SEQ
 
-    cpi SEQ, 0
-    brne ANT_FIN
+    cpi SEQ, 0 ; si es cero salta 
     ldi SEQ, 7
 
-ANT_FIN:
-
-    ; esperar que se suelte el botón
-ESPERA_PC1:
+ESPERA_PC1:     ; esperar que se suelte el botón
     sbis PINC, PC1
     rjmp ESPERA_PC1
 
     rjmp MAIN
-
-
 ;========================================================
-; BOTÓN RESET
-; PC2
+; BOTÓN RESET PC2
 ;========================================================
-
 RESET_SEC:
 
     ldi SEQ, 1
-
     ; apagar todos los LED
     ldi LED, 0
     out PORTD, LED
-
     ; esperar que se suelte
 ESPERA_PC2:
     sbis PINC, PC2
     rjmp ESPERA_PC2
 
     rjmp MAIN
-
-
 ;========================================================
-; DELAY
-;
-; Retardo de aproximadamente 1 segundo
+; DELAY de aproximadamente 1 segundo
 ;========================================================
 
 Delay:
