@@ -12,9 +12,34 @@
 ;0x0016 TIMER1_COMPA Timer/Counter1 Compare Match A  (datashit pag74)
 .orh 0x0016
     rjmp TIMER1_COMPA
-;16.9.2 Clear Timer on Compare Match (CTC) Mode limpiar timer o algo 131
+;----------------------------------------------------
 ATmega328P = 16 MHz
 Prescaler = 1024
+modo CTC
+OCR1A = 15624
+;----------------------------------------------------
+
+    ; Modo CTC
+    ldi r16, (1<<WGM12)
+    sts TCCR1B, r16
+
+    ; Valor de comparación
+    ldi r16, high(15624)
+    sts OCR1AH, r16
+    ldi r16, low(15624)
+    sts OCR1AL, r16
+
+    ; Habilitar interrupción por comparación A
+    ldi r16, (1<<OCIE1A)
+    sts TIMSK1, r16
+
+    ; Prescaler = 1024
+    ldi r16, (1<<WGM12)|(1<<CS12)|(1<<CS10)
+    sts TCCR1B, r16
+
+    ; Habilitar interrupciones globales
+    sei
+;----------------------------------------------------
 Inicio:
 
     ;----------------------------------------------------
@@ -298,3 +323,14 @@ L1: dec  r29
     dec  r27
     breq L1
     ret 
+;========================================================
+; interupcion automatica de aproximadamente 1 segundo
+;========================================================
+TIMER1_COMPA:
+    in r16, PORTD     ; Leer nuemro actual de PORTD (led)
+    ldi r18, (1<<PD7)     ; Máscara para PD7 r18 = 10000000
+    eor r16, r18     ; como no se uso PD7 siempre es 0 entonces la suma siemre cambia a 1 para PD7
+;y sumar cero deja el numero igual (eor=XOR/OR)
+    out PORTD, r16     ; Escribir nuevamente PORTD 
+    reti     ; Regresar al programa principal de la interrupcion
+
