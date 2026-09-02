@@ -1,0 +1,68 @@
+;programa de ejemplo con interrupciones
+.include "m328pdef.inc" ; Define device ATmega328P
+ .ORG 0хө000
+ RJMP Inicio
+ .ORG 0x0002
+ RJMP RSI_0
+ .ORG 0х0004
+ RJMP RSI_1
+
+Inicio:
+       SEI ; habilitamos las interrupciones globales
+       LDI  R16, 0xFF
+       OUT DDRB, R16
+       ;activamos los pull-up en los pines de INTO e INT1
+       SBI PORTD, 2
+       SBI PORTD, 3
+       LDI R17, 0x08
+       OUT SPL, R16
+       ;Inicializamos el puntero de la PILA
+       OUT SPH, R17
+       ; configuramos las interrupciones
+       LDI R18, 0X03
+
+       ;habilita las interrupciones INTO e INT1
+       OUT EIMSK, R18
+       LDI R19, 0x0F
+       ; configura flancos de subida
+       STS EICRA, R19
+Wait:
+       RJMP Wait
+RSI_0:
+       LDI R20, 0x01
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0X02
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0x04
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0x08
+       OUT PORTB, R29
+       RETI
+RSI_1:
+       LDI R20, 0x08
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0x04
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0x02
+       OUT PORTB, R29
+       RCALL Mseg
+       LDI R20, 0x01
+       OUT PORTB, R20
+       RETI
+	Delay:
+    ldi  r19, 234
+    ldi  r20, 200
+    ldi  r21, 199
+L1: dec  r21
+    breq L1
+    dec  r20
+    breq L1
+    dec  r19
+    breq L1
+    nop
+    ret 
