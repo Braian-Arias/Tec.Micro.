@@ -85,11 +85,11 @@ MAIN:
 ;========================================================
 SECUENCIA_1:
     rcall SONRISA_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rcall GUINIO_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rjmp SECUENCIA_1
@@ -100,11 +100,11 @@ SECUENCIA_1:
 ;========================================================
 SECUENCIA_2:
     rcall CORAZON_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rcall CARA3_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rjmp SECUENCIA_2
@@ -115,11 +115,11 @@ SECUENCIA_2:
 ;========================================================
 SECUENCIA_3:
     rcall ASTERISCO_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rcall XD_1S
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne MAIN
 
     rjmp SECUENCIA_3
@@ -186,7 +186,7 @@ SONRISA_1S:
 SONRISA_LOOP:
     rcall cara_sonrisa
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_SONRISA
 
     dec r20
@@ -204,7 +204,7 @@ GUINIO_1S:
 GUINIO_LOOP:
     rcall cara_GUINIO
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_GUINIO
 
     dec r20
@@ -222,7 +222,7 @@ CORAZON_1S:
 CORAZON_LOOP:
     rcall corazon
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_CORAZON
 
     dec r20
@@ -240,7 +240,7 @@ CARA3_1S:
 CARA3_LOOP:
     rcall cara3
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_CARA3
 
     dec r20
@@ -258,7 +258,7 @@ ASTERISCO_1S:
 ASTERISCO_LOOP:
     rcall asterisco
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_ASTERISCO
 
     dec r20
@@ -276,7 +276,7 @@ XD_1S:
 XD_LOOP:
     rcall xd
 
-    tst CAMBIO
+    cpi CAMBIO, 0
     brne FIN_XD
 
     dec r20
