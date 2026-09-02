@@ -283,13 +283,13 @@ ldi r16,0b01101111;9
 ; DELAY de aproximadamente 1 segundo
 ;========================================================
 	Delay:
-    ldi  r19, 234
-    ldi  r20, 200
-    ldi  r21, 199
-L1: dec  r21
+    ldi  r27, 234
+    ldi  r28, 200
+    ldi  r29, 199
+L1: dec  r29
     breq L1
-    dec  r20
+    dec  r28
     breq L1
-    dec  r19
+    dec  r27
     breq L1
     ret 
