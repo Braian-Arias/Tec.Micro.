@@ -1,0 +1,650 @@
+;Empleando la matriz de LEDs, implemente un código que con los mismos dos botones implementados, muestre:
+;Carita sonriendo - Carita guiñando
+;Corazón - :3
+;Asterisco - XD
+; AssemblerApplication4.asm
+; Created: 2/9/2026 17:09:02
+; Author : User
+; Replace with your application code
+.include "m328pdef.inc"
+.def SEQ = r22
+.def CAMBIO = r23
+.org 0x0000
+    rjmp INICIO
+.org 0x0008 ;C0-C5
+    rjmp RSI_PCINT1
+
+;========================================================
+; INICIO
+;========================================================
+INICIO:
+    ; Inicializar pila
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
+
+    ;====================================================
+    ; MATRIZ
+    ; D0-D7 = columnas
+    ; B0-B7 = filas
+    ;====================================================
+    ldi r16, 0xFF
+    out DDRD, r16
+    out DDRB, r16
+
+    ;====================================================
+    ; BOTONES
+    ; PC1 = SIGUIENTE
+    ; PC2 = ANTERIOR
+    ;====================================================
+    ldi r16, 0x00
+    out DDRC, r16
+
+    ; Pull-up PC1 y PC2
+    ldi r16, 0b00000110
+    out PORTC, r16
+;====================================================
+; INTERRUPCIONES PCINT
+;====================================================
+    ; Habilitar PCINT del PORTC
+    ldi r16, 0b00000010
+    sts PCICR, r16
+
+    ; PC1 = PCINT9
+    ; PC2 = PCINT10
+    ldi r16, 0b00000110
+    sts PCMSK1, r16
+
+    ; Comenzar en la secuencia 1
+    ldi SEQ, 1
+    clr CAMBIO
+
+    sei
+
+;========================================================
+; MAIN
+;========================================================
+MAIN:
+    clr CAMBIO
+
+    cpi SEQ, 1
+    breq SECUENCIA_1
+
+    cpi SEQ, 2
+    breq SECUENCIA_2
+
+    cpi SEQ, 2
+    breq SECUENCIA_2
+
+    rjmp MAIN
+
+;========================================================
+; SECUENCIA 1
+; SONRISA / GUINIO
+;========================================================
+SECUENCIA_1:
+    rcall SONRISA_1S
+    tst CAMBIO
+    brne MAIN
+
+    rcall GUINIO_1S
+    tst CAMBIO
+    brne MAIN
+
+    rjmp SECUENCIA_1
+
+;========================================================
+; SECUENCIA 2
+; CORAZÓN / :3
+;========================================================
+SECUENCIA_2:
+    rcall CORAZON_1S
+    tst CAMBIO
+    brne MAIN
+
+    rcall CARA3_1S
+    tst CAMBIO
+    brne MAIN
+
+    rjmp SECUENCIA_2
+
+;========================================================
+; SECUENCIA 3
+; ASTERISCO / XD
+;========================================================
+SECUENCIA_3:
+    rcall ASTERISCO_1S
+    tst CAMBIO
+    brne MAIN
+
+    rcall XD_1S
+    tst CAMBIO
+    brne MAIN
+
+    rjmp SECUENCIA_3
+
+;========================================================
+; INTERRUPCIÓN DE LOS BOTONES
+;========================================================
+RSI_PCINT1:
+    push r16
+    in r16, SREG
+    push r16
+
+    in r16, PINC
+    andi r16, 0b00000110
+
+    ; PC1 = SIGUIENTE
+    ; PC1 presionado -> PC2 queda en 1
+    ; valor = 00000100
+    cpi r16, 0b00000100
+    breq SIGUIENTE
+
+    ; PC2 = ANTERIOR
+    ; PC2 presionado -> PC1 queda en 1
+    ; valor = 00000010
+    cpi r16, 0b00000010
+    breq ANTERIOR
+
+    rjmp FINAL
+
+;========================================================
+; BOTÓN SIGUIENTE PC1
+;========================================================
+SIGUIENTE:
+    inc SEQ
+    cpi SEQ, 4
+    brne CAMBIO_PANTALLA
+    ldi SEQ, 1
+
+CAMBIO_PANTALLA:
+    ldi CAMBIO, 1
+    rjmp FINAL
+
+;========================================================
+; BOTÓN ANTERIOR PC2
+;========================================================
+ANTERIOR:
+    dec SEQ
+    cpi SEQ, 0
+    brne CAMBIO_PANTALLA
+    ldi SEQ, 3
+
+FINAL:
+    pop r16
+    out SREG, r16
+    pop r16
+    reti
+
+;========================================================
+; SONRISA 1 SEGUNDO
+;========================================================
+SONRISA_1S:
+    ldi r20, 130
+
+SONRISA_LOOP:
+    rcall cara_sonrisa
+
+    tst CAMBIO
+    brne FIN_SONRISA
+
+    dec r20
+    brne SONRISA_LOOP
+
+FIN_SONRISA:
+    ret
+
+;========================================================
+; GUINIO 1 SEGUNDO
+;========================================================
+GUINIO_1S:
+    ldi r20, 130
+
+GUINIO_LOOP:
+    rcall cara_GUINIO
+
+    tst CAMBIO
+    brne FIN_GUINIO
+
+    dec r20
+    brne GUINIO_LOOP
+
+FIN_GUINIO:
+    ret
+
+;========================================================
+; CORAZÓN 1 SEGUNDO
+;========================================================
+CORAZON_1S:
+    ldi r20, 130
+
+CORAZON_LOOP:
+    rcall corazon
+
+    tst CAMBIO
+    brne FIN_CORAZON
+
+    dec r20
+    brne CORAZON_LOOP
+
+FIN_CORAZON:
+    ret
+
+;========================================================
+; :3 1 SEGUNDO
+;========================================================
+CARA3_1S:
+    ldi r20, 130
+
+CARA3_LOOP:
+    rcall cara3
+
+    tst CAMBIO
+    brne FIN_CARA3
+
+    dec r20
+    brne CARA3_LOOP
+
+FIN_CARA3:
+    ret
+
+;========================================================
+; ASTERISCO 1 SEGUNDO
+;========================================================
+ASTERISCO_1S:
+    ldi r20, 130
+
+ASTERISCO_LOOP:
+    rcall asterisco
+
+    tst CAMBIO
+    brne FIN_ASTERISCO
+
+    dec r20
+    brne ASTERISCO_LOOP
+
+FIN_ASTERISCO:
+    ret
+
+;========================================================
+; XD 1 SEGUNDO
+;========================================================
+XD_1S:
+    ldi r20, 130
+
+XD_LOOP:
+    rcall xd
+
+    tst CAMBIO
+    brne FIN_XD
+
+    dec r20
+    brne XD_LOOP
+
+FIN_XD:
+    ret
+
+;========================================================
+; CARA SONRISA
+;========================================================
+cara_sonrisa:
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10100101
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10000001
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10100101
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10011001
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; CARA GUINIO
+;========================================================
+cara_GUINIO:
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10000001
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10000001
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10100101
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10011001
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; CORAZÓN
+;========================================================
+corazon:
+    ldi r16, 0b00000000
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01100110
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b11111111
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b11111111
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01111110
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00011000
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00000000
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; :3
+;========================================================
+cara3:
+    ldi r16, 0b00000000
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01100000
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01100000
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00000000
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00000000
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; ASTERISCO
+;========================================================
+asterisco:
+    ldi r16, 0b10000001
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00011000
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00111100
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01000010
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10000001
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00011000
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; XD
+;========================================================
+xd:
+    ldi r16, 0b10001110
+    out PORTB, r16
+    ldi r16, 0b00000001
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01001001
+    out PORTB, r16
+    ldi r16, 0b00000010
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00101001
+    out PORTB, r16
+    ldi r16, 0b00000100
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00011110
+    out PORTB, r16
+    ldi r16, 0b00001000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00011001
+    out PORTB, r16
+    ldi r16, 0b00010000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b00101001
+    out PORTB, r16
+    ldi r16, 0b00100000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b01001001
+    out PORTB, r16
+    ldi r16, 0b01000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ldi r16, 0b10001110
+    out PORTB, r16
+    ldi r16, 0b10000000
+    out PORTD, r16
+    rcall delay_ms
+
+    ret
+
+;========================================================
+; DELAY MS
+;========================================================
+delay_ms:
+    ldi r18, 25
+    ldi r19, 200
+
+L_MS:
+    dec r19
+    brne L_MS
+    dec r18
+    brne L_MS
+    ret
+
+;========================================================
+; DELAY 1S
+;========================================================
+delay_1s:
+    ldi r18, 130
+
+L_1S:
+    rcall delay_ms
+    dec r18
+    brne L_1S
+    ret
+
+;========================================================
+; DELAY BOTÓN
+;========================================================
+delay_boton:
+    ldi r18, 20
+
+L_BOTON:
+    rcall delay_ms
+    dec r18
+    brne L_BOTON
+    ret
+
+
