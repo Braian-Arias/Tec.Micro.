@@ -1,4 +1,4 @@
-; - Contador arriba-abajo + dp 
+; EV3- Contador arriba-abajo + dp 
 ;Generar un Contador arriba-abajo (up-down) con un microcontrolador Atmega328P,
 ;que muestre los números de forma ascendente y descendente, 
 ;adicional a esto, el punto del display debe parpadear cada segundo sin importar si se activa el contador.
@@ -63,19 +63,12 @@ Inicio:
     ; Configurar contador en cero
     ;----------------------------------------------------
     ldi r17, 0x00
-	cero:
-	sbic PINB, PB2
-	rjmp main_loop
-	sbis PINB, PB1
-	rjmp B0
-	rjmp cero
 B0:
 ldi r16,0b00111111  ;0
     out PORTD, r16
 	ldi r17, 0
-	sbis PINB, PB0 ; CONTINUAMENTE SE FIJA SI SE TIENE QUE REINICIAR
+	rcall Delay2  ; 20s
     rjmp main_loop 
-	rjmp B0
 main_loop:
     mov r19, r17
 
@@ -83,10 +76,8 @@ main_loop:
     rjmp menu_1
     sbis PINB, PB1     
     rjmp menu_2
-	rcall delay
-	rcall delay
     sbis PINB, PB2
-	rjmp cero
+	rjmp B0
     rjmp main_loop
 
     ;---------------------------------------------------
@@ -131,72 +122,62 @@ main_loop:
 ldi r16,0b00111111  ;0
     out PORTD, r16
 	ldi r17, 0
-	sbis PINB, PB2 ; CONTINUAMENTE SE FIJA SI SE TIENE QUE REINICIAR
-    rjmp main_loop 
-	rjmp N0
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N1:
 ldi r16,0b00000110 ;1
     out PORTD, r16
 	ldi r17, 1
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N1
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N2:
 ldi r16,0b01011011 ;2
     out PORTD, r16
 	ldi r17, 2
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N2
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N3:
 ldi r16,0b01001111 ;3
     out PORTD, r16
 	ldi r17, 3
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N3
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N4:
 ldi r16,0b01100110 ;4
     out PORTD, r16
 	ldi r17, 4
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N4
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N5:
 ldi r16,0b01101101;5
     out PORTD, r16
 	ldi r17,  5
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N5
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N6:
 ldi r16,0b01111101;6
     out PORTD, r16
 	ldi r17,  6
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N6
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N7:
 ldi r16,0b00000111;7
     out PORTD, r16
 	ldi r17,  7
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N7
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N8:
 ldi r16,0b01111111;8
     out PORTD, r16
 	ldi r17, 8
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N8
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	N9:
 ldi r16,0b01101111;9
     out PORTD, r16
 	ldi r17,  9
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp N9
+	rcall Delay2  ; 20s
+    rjmp main_loop
 
     ;----------------------------------------------------
     ; MENU2 DISMINUYE EL NUMERO 2 -> 1
@@ -241,73 +222,76 @@ ldi r16,0b01101111;9
 ldi r16,0b00111111  ;0
     out PORTD, r16
 	ldi r17, 0
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F0
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F1:
 ldi r16,0b00000110 ;1
     out PORTD, r16
 	ldi r17, 1
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F1
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F2:
 ldi r16,0b01011011 ;2
     out PORTD, r16
 	ldi r17, 2
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F2
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F3:
 ldi r16,0b01001111 ;3
     out PORTD, r16
 	ldi r17, 3
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F3
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F4:
 ldi r16,0b01100110 ;4
     out PORTD, r16
 	ldi r17, 4
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F4
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F5:
 ldi r16,0b01101101;5
     out PORTD, r16
 	ldi r17,  5
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F5
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F6:
 ldi r16,0b01111101;6
     out PORTD, r16
 	ldi r17,  6
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F6
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F7:
 ldi r16,0b00000111;7
     out PORTD, r16
 	ldi r17,  7
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F7
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F8:
 ldi r16,0b01111111;8
     out PORTD, r16
 	ldi r17, 8
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F8
+	rcall Delay2  ; 20s
+    rjmp main_loop
 	F9:
 ldi r16,0b01101111;9
     out PORTD, r16
 	ldi r17,  9
-	sbis PINB, PB2
-    rjmp main_loop 
-	rjmp F9
+	rcall Delay2  ; 20s
+    rjmp main_loop
 
+	Delay2:
+	ldi r24, 5
+	ldi r25, 250
+    ldi r26, 255
+D20:
+    rcall Delay
+    dec r26
+    brne D20
+    dec r25
+    brne D20
+    dec r24
+    brne D20
+    ret
 ;========================================================
 ; DELAY de aproximadamente 1 segundo
 ;========================================================
@@ -332,4 +316,3 @@ TIMER1_COMPA:
 ;y sumar cero deja el numero igual (eor=XOR/OR)
     out PORTD, r16     ; Escribir nuevamente PORTD 
     reti     ; Regresar al programa principal de la interrupcion
-
