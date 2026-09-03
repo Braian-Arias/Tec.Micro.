@@ -1,0 +1,318 @@
+; EV3- Contador arriba-abajo + dp 
+;Generar un Contador arriba-abajo (up-down) con un microcontrolador Atmega328P,
+;que muestre los números de forma ascendente y descendente, 
+;adicional a esto, el punto del display debe parpadear cada segundo sin importar si se activa el contador.
+
+; 2/9 3:16
+; Cierre: viernes, 4 de septiembre de 2026, 05:00
+.include "m328pdef.inc"
+
+.org 0x0000
+    rjmp Inicio
+;0x0016 TIMER1_COMPA Timer/Counter1 Compare Match A  (datashit pag74)
+.org 0x0016
+    rjmp TIMER1_COMPA
+;----------------------------------------------------
+Inicio:
+;----------------------------------------------------
+;ATmega328P = 16 MHz
+;Prescaler = 1024
+;modo CTC
+;OCR1A = 15624
+;----------------------------------------------------
+
+    ; Modo CTC
+    ldi r16, (1<<WGM12)
+    sts TCCR1B, r16
+
+    ; Valor de comparación
+    ldi r16, high(15624)
+    sts OCR1AH, r16
+    ldi r16, low(15624)
+    sts OCR1AL, r16
+
+    ; Habilitar interrupción por comparación A
+    ldi r16, (1<<OCIE1A)
+    sts TIMSK1, r16
+
+    ; Prescaler = 1024
+    ldi r16, (1<<WGM12)|(1<<CS12)|(1<<CS10)
+    sts TCCR1B, r16
+
+    ; Habilitar interrupciones globales
+    sei
+    ;----------------------------------------------------
+    ; Configurar PORTD como salida led
+    ;----------------------------------------------------
+
+    ; Configurar salidas
+    ldi r16, 0b11111111   ; PD1..PD7 como salida
+    out DDRD, r16
+    ;----------------------------------------------------
+    ; Configurar PORTC como entrada boton
+    ;----------------------------------------------------
+
+    ldi r22, 0x00             ; Puerto C como entrada
+    out DDRB, r22
+
+    ; Pull-up interno en PC0, PC1 y PC2
+    ldi r22, (1<<PORTB0)|(1<<PORTB1)|(1<<PORTB2)
+    out PORTB, r22
+	ldi r16, 0
+    ;----------------------------------------------------
+    ; Configurar contador en cero
+    ;----------------------------------------------------
+    ldi r17, 0x00
+B0:
+ldi r16,0b00111111  ;0
+    out PORTD, r16
+	ldi r17, 0
+	rcall Delay2  ; 20s
+    rjmp main_loop 
+main_loop:
+    mov r19, r17
+
+    sbis PINB, PB0
+    rjmp menu_1
+    sbis PINB, PB1     
+    rjmp menu_2
+    sbis PINB, PB2
+	rjmp B0
+    rjmp main_loop
+
+    ;---------------------------------------------------
+    ; MENU1 AUMENTA EL NUMERO 1 -> 2
+    ;----------------------------------------------------
+
+	menu_1:
+	mov r18, r19
+    ldi r16, 0 ;0
+    cp r18, r16
+	breq N1
+    ldi r16, 1 ;1
+	cp r18, r16
+	breq N2
+    ldi r16, 2;2
+	cp r18, r16
+	breq N3
+	ldi r16, 3;3
+    cp r18, r16
+	breq N4
+    ldi r16, 4;4
+	cp r18, r16
+	breq N5
+    ldi r16, 5;5
+	cp r18, r16
+	breq N6
+    ldi r16, 6;6
+    cp r18, r16
+	breq N7
+    ldi r16, 7;7
+	cp r18, r16
+	breq N8
+    ldi r16, 8;8
+	cp r18, r16
+	breq N9
+    ldi r16, 9;9
+	cp r18, r16
+	breq N0
+	rjmp menu_1
+
+	N0:
+ldi r16,0b00111111  ;0
+    out PORTD, r16
+	ldi r17, 0
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N1:
+ldi r16,0b00000110 ;1
+    out PORTD, r16
+	ldi r17, 1
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N2:
+ldi r16,0b01011011 ;2
+    out PORTD, r16
+	ldi r17, 2
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N3:
+ldi r16,0b01001111 ;3
+    out PORTD, r16
+	ldi r17, 3
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N4:
+ldi r16,0b01100110 ;4
+    out PORTD, r16
+	ldi r17, 4
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N5:
+ldi r16,0b01101101;5
+    out PORTD, r16
+	ldi r17,  5
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N6:
+ldi r16,0b01111101;6
+    out PORTD, r16
+	ldi r17,  6
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N7:
+ldi r16,0b00000111;7
+    out PORTD, r16
+	ldi r17,  7
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N8:
+ldi r16,0b01111111;8
+    out PORTD, r16
+	ldi r17, 8
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	N9:
+ldi r16,0b01101111;9
+    out PORTD, r16
+	ldi r17,  9
+	rcall Delay2  ; 20s
+    rjmp main_loop
+
+    ;----------------------------------------------------
+    ; MENU2 DISMINUYE EL NUMERO 2 -> 1
+    ;----------------------------------------------------
+
+	menu_2:
+	mov r18, r19
+    ldi r16, 1;1
+	cp r18, r16
+	breq F0
+    ldi r16, 2;2
+	cp r18, r16
+	breq F1
+	ldi r16, 3;3
+    cp r18, r16
+	breq F2
+    ldi r16, 4 ;4
+	cp r18, r16
+	breq F3
+    ldi r16, 5;5
+	cp r18, r16
+	breq F4
+    ldi r16, 6;6
+    cp r18, r16
+	breq F5
+    ldi r16, 7;7
+	cp r18, r16
+	breq F6
+    ldi r16, 8;8
+	cp r18, r16
+	breq F7
+    ldi r16, 9;9
+	cp r18, r16
+	breq F8
+	ldi r16, 0 ;0
+    cp r18, r16
+	breq F9
+
+	rjmp menu_2
+
+	F0:
+ldi r16,0b00111111  ;0
+    out PORTD, r16
+	ldi r17, 0
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F1:
+ldi r16,0b00000110 ;1
+    out PORTD, r16
+	ldi r17, 1
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F2:
+ldi r16,0b01011011 ;2
+    out PORTD, r16
+	ldi r17, 2
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F3:
+ldi r16,0b01001111 ;3
+    out PORTD, r16
+	ldi r17, 3
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F4:
+ldi r16,0b01100110 ;4
+    out PORTD, r16
+	ldi r17, 4
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F5:
+ldi r16,0b01101101;5
+    out PORTD, r16
+	ldi r17,  5
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F6:
+ldi r16,0b01111101;6
+    out PORTD, r16
+	ldi r17,  6
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F7:
+ldi r16,0b00000111;7
+    out PORTD, r16
+	ldi r17,  7
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F8:
+ldi r16,0b01111111;8
+    out PORTD, r16
+	ldi r17, 8
+	rcall Delay2  ; 20s
+    rjmp main_loop
+	F9:
+ldi r16,0b01101111;9
+    out PORTD, r16
+	ldi r17,  9
+	rcall Delay2  ; 20s
+    rjmp main_loop
+
+	Delay2:
+	ldi r24, 5
+	ldi r25, 250
+    ldi r26, 255
+D20:
+    rcall Delay
+    dec r26
+    brne D20
+    dec r25
+    brne D20
+    dec r24
+    brne D20
+    ret
+;========================================================
+; DELAY de aproximadamente 1 segundo
+;========================================================
+	Delay:
+    ldi  r27, 234
+    ldi  r28, 200
+    ldi  r29, 199
+L1: dec  r29
+    breq L1
+    dec  r28
+    breq L1
+    dec  r27
+    breq L1
+    ret 
+;========================================================
+; interupcion automatica de aproximadamente 1 segundo
+;========================================================
+TIMER1_COMPA:
+    in r16, PORTD     ; Leer nuemro actual de PORTD (led)
+    ldi r18, (1<<PD7)     ; Máscara para PD7 r18 = 10000000
+    eor r16, r18     ; como no se uso PD7 siempre es 0 entonces la suma siemre cambia a 1 para PD7
+;y sumar cero deja el numero igual (eor=XOR/OR)
+    out PORTD, r16     ; Escribir nuevamente PORTD 
+    reti     ; Regresar al programa principal de la interrupcion
