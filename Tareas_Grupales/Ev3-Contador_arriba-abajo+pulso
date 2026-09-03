@@ -10,13 +10,13 @@
 .org 0x0000
     rjmp Inicio
 ;0x0016 TIMER1_COMPA Timer/Counter1 Compare Match A  (datashit pag74)
-.orh 0x0016
+.org 0x0016
     rjmp TIMER1_COMPA
 ;----------------------------------------------------
-ATmega328P = 16 MHz
-Prescaler = 1024
-modo CTC
-OCR1A = 15624
+;ATmega328P = 16 MHz
+;Prescaler = 1024
+;modo CTC
+;OCR1A = 15624
 ;----------------------------------------------------
 
     ; Modo CTC
