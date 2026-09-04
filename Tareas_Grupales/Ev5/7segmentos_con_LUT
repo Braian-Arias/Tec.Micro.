@@ -27,11 +27,11 @@ rjmp start
 ; Configuración de puertos y LUT
 configurar:
 ; PORTD como salida
-	ldi r20, 255
+	ldi r20, (1<<PORTD6)|(1<<PORTD7)
 	out DDRD, r20
 
 ; PORTB como salida
-	ldi r20, 0xff
+	ldi r20, 0b00111111
 	out DDRB, r20
 
 ; PORTC = 0
@@ -120,7 +120,23 @@ set_7seg_u:
 	call	get_7seg_code
 	mov		r17, r20
 	out		PORTB, r17
-	ret
+
+; a,b,c,d,e,f -> PB0-PB5
+    mov r20, r17
+    andi r20, 0b00111111
+    out PORTB, r20
+
+    ; g,dp -> PD6-PD7
+    mov r20, r17
+    andi r20, 0b11000000
+
+    ; No tocar PD0 y PD1
+    in r18, PORTD
+    andi r18, 0b00111111
+    or r18, r20
+    out PORTD, r18
+
+    ret
 
 ; ============================================================
 get_7seg_code:
