@@ -70,7 +70,6 @@ start:
     call Configurar_Stack_Pointer
 	call configurar
     call uart_init
-	ldi r16, 0x01
 start2:
     call uart_rx
 	call get_u
@@ -79,13 +78,41 @@ start2:
 ; ============================================================
 get_u:
 	mov		r20, r16
-	andi	r20, 0x0f
-	mov		r1, r20
-	ret
+    ; Si es 0-9
+    cpi r20, '0'
+    brlo letra ;si r20 < '0'
 
+    cpi r20, '9'+1
+    brsh letra ;si r20 >= 58
+
+    subi r20, '0' ;r20 = r20 - '0'
+	mov		r31, r20
+	ret
+; ============================================================
+letra:
+    ; Si es A-F
+    mov r20, r16
+
+    cpi r20, 'A'
+    brlo invalido
+
+    cpi r20, 'F'+1
+    brsh invalido
+
+    subi r20, 'A'
+
+    ldi r21, 10
+    add r20, r21
+
+    mov r31, r20
+    ret
+; ============================================================
+invalido:
+    ldi r31, 0
+    ret
 ; ============================================================
 set_7seg_u:
-	mov		r0, r1
+	mov		r30, r31
 	call	get_7seg_code
 	mov		r17, r20
 	out		PORTD, r17
