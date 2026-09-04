@@ -119,7 +119,7 @@ set_7seg_u:
 	mov		r30, r31
 	call	get_7seg_code
 	mov		r17, r20
-	out		PORTD, r17
+	out		PORTB, r17
 	ret
 
 ; ============================================================
