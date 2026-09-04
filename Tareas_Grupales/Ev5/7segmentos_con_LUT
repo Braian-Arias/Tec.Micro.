@@ -38,9 +38,24 @@ configurar:
 	call guardar_codigos
 	ret
 ; ============================================================
-esperar_inicio:
-	nop
-	ret
+uart_init:
+
+    ; 9600 baudios con F_CPU = 16 MHz
+    ldi r20, 103
+    sts UBRR0L, r20
+
+    clr r20
+    sts UBRR0H, r20
+
+    ; Habilitar RX y TX
+    ldi r20, (1<<RXEN0)|(1<<TXEN0)
+    sts UCSR0B, r20
+
+    ; 8 bits, 1 bit de stop, sin paridad
+    ldi r20, (1<<UCSZ01)|(1<<UCSZ00)
+    sts UCSR0C, r20
+
+    ret
 ; ============================================================
 uart_rx:
     lds r17, UCSR0A
@@ -54,7 +69,7 @@ uart_rx:
 start:
     call Configurar_Stack_Pointer
 	call configurar
-	call esperar_inicio
+    call uart_init
 	ldi r16, 0x01
 start2:
     call uart_rx
