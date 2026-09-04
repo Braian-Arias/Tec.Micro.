@@ -10,6 +10,7 @@
 ; 0 1 2 3 4 5 6 7 8 9 A B C D E F
 ; y muestra el valor en 7 segmentos
 ; ============================================================
+.include "m328Pdef.inc"
 .org 0x0000
 rjmp start
 .equ F_CPU = 16000000
@@ -119,9 +120,8 @@ set_7seg_u:
 	mov		r30, r31
 	call	get_7seg_code
 	mov		r17, r20
-	out		PORTB, r17
 
-; a,b,c,d,e,f -> PB0-PB5
+    ; a,b,c,d,e,f
     mov r20, r17
     andi r20, 0b00111111
     out PORTB, r20
@@ -168,7 +168,7 @@ guardar_codigos:
 	ST Y+, r20
 	ldi r20, 0b01111111 ;cargamos el 8
 	ST Y+, r20
-	ldi r20, 0b01110011 ;cargamos el 9
+	ldi r20, 0b01111011 ;cargamos el 9
 	ST Y+, r20
     ldi r20, 0b01110111 ;cargamos el a
     st Y+, r20
