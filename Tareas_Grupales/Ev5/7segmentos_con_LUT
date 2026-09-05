@@ -37,13 +37,19 @@ configurar:
 
 ; PORTC = 0
 	clr r20
-	out PORTC, r20
+    out PORTC, r20
+	out PORTB, r20
+    out PORTD, r20
 
 ; Guardar códigos de la LUT
 	call guardar_codigos
 	ret
 ; ============================================================
 uart_init:
+    ; modo normal
+    ; U2X0 = 0
+    clr r20
+    sts UCSR0A, r20
 
     ; 9600 baudios con F_CPU = 16 MHz
     ldi r20, bps
@@ -63,9 +69,11 @@ uart_init:
     ret
 ; ============================================================
 uart_rx:
+
+esperar_rx:
     lds r17, UCSR0A
     sbrs r17, RXC0
-    rjmp uart_rx
+    rjmp esperar_rx
     lds r16, UDR0
 
     ret
@@ -75,9 +83,13 @@ start:
     call Configurar_Stack_Pointer
 	call configurar
     call uart_init
+    ldi r31, 0
+    call set_7seg_u
 start2:
     call uart_rx
 	call get_u
+    cpi r31, 0xFF
+    breq start2
 	call set_7seg_u
 	rjmp start2
 ; ============================================================
@@ -113,7 +125,7 @@ letra:
     ret
 ; ============================================================
 invalido:
-    ldi r31, 0
+    ldi r31, 0xFF
     ret
 ; ============================================================
 set_7seg_u:
@@ -130,7 +142,7 @@ set_7seg_u:
     mov r20, r17
     andi r20, 0b11000000
 
-    ; No tocar PD0 y PD1
+    ; PD0 y PD1
     in r18, PORTD
     andi r18, 0b00111111
     or r18, r20
