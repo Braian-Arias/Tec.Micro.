@@ -1,0 +1,199 @@
+;Ev5 7 seg LUT UART
+; AssemblerApplication6.asm
+; Created: 4/9/2026 1:05:19
+; Author : User
+; Replace with your application code
+; ============================================================
+; AssemblerApplication6.asm
+; USART + LUT + 7 segmentos
+; Recibe por USART:
+; 0 1 2 3 4 5 6 7 8 9 A B C D E F
+; y muestra el valor en 7 segmentos
+; ============================================================
+.include "m328Pdef.inc"
+.org 0x0000
+rjmp start
+.equ F_CPU = 16000000
+.equ baud = 9600
+.equ bps = (F_CPU/16/baud) - 1
+; ============================================================
+ Configurar_Stack_Pointer:
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
+
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
+    ret
+; ============================================================
+; Configuración de puertos y LUT
+configurar:
+; PORTD como salida
+	ldi r20, (1<<PORTD6)|(1<<PORTD7)
+	out DDRD, r20
+
+; PORTB como salida
+	ldi r20, 0b00111111
+	out DDRB, r20
+
+; PORTC = 0
+	clr r20
+    out PORTC, r20
+	out PORTB, r20
+    out PORTD, r20
+
+; Guardar códigos de la LUT
+	call guardar_codigos
+	ret
+; ============================================================
+uart_init:
+    ; modo normal
+    ; U2X0 = 0
+    clr r20
+    sts UCSR0A, r20
+
+    ; 9600 baudios con F_CPU = 16 MHz
+    ldi r20, bps
+    sts UBRR0L, r20
+
+    clr r20
+    sts UBRR0H, r20
+
+    ; Habilitar RX y TX
+    ldi r20, (1<<RXEN0)|(1<<TXEN0)
+    sts UCSR0B, r20
+
+    ; 8 bits, 1 bit de stop, sin paridad
+    ldi r20, (1<<UCSZ01)|(1<<UCSZ00)
+    sts UCSR0C, r20
+
+    ret
+; ============================================================
+uart_rx:
+
+esperar_rx:
+    lds r17, UCSR0A
+    sbrs r17, RXC0
+    rjmp esperar_rx
+    lds r16, UDR0
+
+    ret
+; ============================================================
+
+start:
+    call Configurar_Stack_Pointer
+	call configurar
+    call uart_init
+    ldi r31, 0
+    call set_7seg_u
+start2:
+    call uart_rx
+	call get_u
+    cpi r31, 0xFF
+    breq start2
+	call set_7seg_u
+	rjmp start2
+; ============================================================
+get_u:
+	mov		r20, r16
+    ; Si es 0-9
+    cpi r20, '0'
+    brlo letra ;si r20 < '0'
+
+    cpi r20, '9'+1
+    brsh letra ;si r20 >= 58
+
+    subi r20, '0' ;r20 = r20 - '0'
+	mov		r31, r20
+	ret
+; ============================================================
+letra:
+    ; Si es A-F
+    mov r20, r16
+
+    cpi r20, 'A'
+    brlo invalido
+
+    cpi r20, 'F'+1
+    brsh invalido
+
+    subi r20, 'A'
+
+    ldi r21, 10
+    add r20, r21
+
+    mov r31, r20
+    ret
+; ============================================================
+invalido:
+    ldi r31, 0xFF
+    ret
+; ============================================================
+set_7seg_u:
+	mov		r30, r31
+	call	get_7seg_code
+	mov		r17, r20
+
+    ; a,b,c,d,e,f
+    mov r20, r17
+    andi r20, 0b00111111
+    out PORTB, r20
+
+    ; g,dp -> PD6-PD7
+    mov r20, r17
+    andi r20, 0b11000000
+
+    ; PD0 y PD1
+    in r18, PORTD
+    andi r18, 0b00111111
+    or r18, r20
+    out PORTD, r18
+
+    ret
+
+; ============================================================
+get_7seg_code:
+	ldi r28,0x00 ;LOW(0x0100)
+	ldi r29,0x01 ;HIGH(0x0100)
+	add r28,r30
+	ld r20, Y
+	ret
+
+; ============================================================
+guardar_codigos:
+	ldi r28, 0x00 ;LOW(0x0100)
+	ldi r29, 0x01 ;HIGH(0x0100)
+	ldi r20, 0b01111110 ;cargamos el 0
+	ST Y+, r20
+	ldi r20, 0b00110000 ;cargamos el 1
+	ST Y+, r20
+	ldi r20, 0b01101101 ;cargamos el 2
+	ST Y+, r20
+	ldi r20, 0b01111001 ;cargamos el 3
+	ST Y+, r20
+	ldi r20, 0b00110011 ;cargamos el 4
+	ST Y+, r20
+	ldi r20, 0b01011011 ;cargamos el 5
+	ST Y+, r20
+	ldi r20, 0b01011111 ;cargamos el 6
+	ST Y+, r20
+	ldi r20, 0b01110000 ;cargamos el 7
+	ST Y+, r20
+	ldi r20, 0b01111111 ;cargamos el 8
+	ST Y+, r20
+	ldi r20, 0b01111011 ;cargamos el 9
+	ST Y+, r20
+    ldi r20, 0b01110111 ;cargamos el a
+    st Y+, r20
+    ldi r20, 0b00011111 ;cargamos el b
+    st Y+, r20
+    ldi r20, 0b01001110 ;cargamos el c
+    st Y+, r20
+    ldi r20, 0b00111101 ;cargamos el d
+    st Y+, r20
+    ldi r20, 0b01001111 ;cargamos el E
+    st Y+, r20
+    ldi r20, 0b01000111 ;cargamos el F
+    st Y+, r20
+	ret
+
+; ============================================================
