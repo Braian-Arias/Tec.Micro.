@@ -1,0 +1,175 @@
+ ;Lab-A _Matriz Led desplazamiento + figuras
+; AssemblerApplication7.asm
+; Created: 8/9/2026 14:15:28
+; Author : User
+.include "m328pdef.inc"
+.ORG 0x0000
+.equ F_CPU = 16000000
+.equ baud = 9600
+.equ bps = (F_CPU/16/baud)-1
+RJMP Inicio
+;______________________________________________________________________
+Inicio:
+  ; Inicializar stack
+  ldi r16,HIGH(RAMEND)
+  out SPH,r16
+  ldi r16,LOW(RAMEND)
+  out SPL,r16
+;______________________________________________________________________
+  ;como todo es salida para la matriz menos tx y rx todo salida y despues defino
+  ; PORTD: PD0 RX, PD1 TX, PD2-PD7 matriz
+  ldi r16,0b11111100
+  out DDRD,r16
+
+  ; PORTB: PB0-PB5 matriz
+  ldi r16,0b00111111
+  out DDRB,r16
+
+  ; PORTC: PC0-PC5 matriz
+  ldi r16,0b00111111
+  out DDRC,r16
+
+  ; Inicializar UART
+  rcall uart_init
+;______________________________________________________________________
+ ; Mostrar mensaje de bienvenida
+  ldi ZL,LOW(mensaje_inicio<<1)
+  ldi ZH,HIGH(mensaje_inicio<<1)
+  rcall uart_print
+
+
+  rcall mostrar_menu
+
+;______________________________________________________________________
+main_loop:
+
+  rcall uart_rx
+
+  cpi r16,'1'
+  breq cmd1
+
+  cpi r16,'2'
+  breq cmd2
+
+  cpi r16,'3'
+  breq cmd3
+
+  rjmp main_loop
+
+;______________________________________________________________________
+cmd1:
+
+  ldi ZL,LOW(mensaje_sonrisa<<1)
+  ldi ZH,HIGH(mensaje_sonrisa<<1)
+  rcall uart_print
+
+  rcall mostrar_menu
+  rjmp main_loop
+
+
+cmd2:
+
+  ldi ZL,LOW(mensaje_guino<<1)
+  ldi ZH,HIGH(mensaje_guino<<1)
+  rcall uart_print
+
+  rcall mostrar_menu
+  rjmp main_loop
+
+
+cmd3:
+
+  ldi ZL,LOW(mensaje_corazon<<1)
+  ldi ZH,HIGH(mensaje_corazon<<1)
+  rcall uart_print
+
+  rcall mostrar_menu
+  rjmp main_loop
+;______________________________________________________________________
+mostrar_menu:
+
+  ldi ZL,LOW(menu<<1)
+  ldi ZH,HIGH(menu<<1)
+  rcall uart_print
+  ret
+;______________________________________________________________________
+uart_init:
+
+  ldi r16,HIGH(bps)
+  sts UBRR0H,r16
+  ldi r16,LOW(bps)
+  sts UBRR0L,r16
+  ldi r16,(1<<RXEN0)|(1<<TXEN0)
+  sts UCSR0B,r16
+  ldi r16,(1<<UCSZ01)|(1<<UCSZ00)
+  sts UCSR0C,r16
+  ret
+;______________________________________________________________________
+; Transmitir carácter por UART
+uart_tx:
+esperar_tx:
+  lds r17,UCSR0A
+  sbrs r17,UDRE0
+  rjmp esperar_tx
+  sts UDR0,r16
+  ret
+;______________________________________________________________________
+; Recibir carácter por UART
+uart_rx:
+esperar_rx:
+  lds r17,UCSR0A
+  sbrs r17,RXC0
+  rjmp esperar_rx
+  lds r16,UDR0
+  ret
+;______________________________________________________________________
+; Transmitir string desde memoria de programa (terminado en 0)
+; Z = puntero
+uart_print:
+  lpm r16,Z+
+  cpi r16,0
+  breq uart_print_end
+  rcall uart_tx
+  rjmp uart_print
+uart_print_end:
+  ret
+;______________________________________________________________________
+
+mensaje_inicio:
+
+  .db 0x0D,0x0A
+  .db "================================",0x0D,0x0A
+  .db "       MATRIZ DE LEDS",0x0D,0x0A,0
+  .db "================================",0x0D,0x0A
+  .db "Bienvenido!",0x0D,0x0A,0
+  .db 0x0D,0x0A
+;______________________________________________________________________
+menu:
+
+  .db 0x0D,0x0A
+  .db "----------- MENU -----------",0x0D,0x0A
+  .db "1 - Sonrisa",0x0D,0x0A,0
+  .db "2 - Guino",0x0D,0x0A,0
+  .db "3 - Corazon",0x0D,0x0A,0
+  .db "----------------------------",0x0D,0x0A
+  .db "Seleccione una opcion: ",0x0D,0x0A,0 ;algunos se arreglan con 0 y otros no??
+;______________________________________________________________________
+mensaje_sonrisa:
+
+  .db 0x0D,0x0A
+  .db "Seleccion: SONRISA",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+mensaje_guino:
+
+  .db 0x0D,0x0A
+  .db "Seleccion: GUINO",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+mensaje_corazon:
+
+  .db 0x0D,0x0A
+  .db "Seleccion: CORAZON",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+
