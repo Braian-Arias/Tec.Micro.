@@ -1,0 +1,136 @@
+.include "m328Pdef.inc"
+
+.equ CERRADA  = 0
+.equ ABRIENDO = 1
+.equ ABIERTA  = 2
+.equ CERRANDO = 3
+
+.cseg
+.org 0x0000
+    rjmp inicio
+
+inicio:
+
+    ; PB0 y PB1 salidas para el motor
+    ldi r16, 0b00000011
+    out DDRB, r16
+
+    ; motor apagado al inicio
+    clr r16
+    out PORTB, r16
+
+    ; PC0 a PC3 entradas
+    clr r16
+    out DDRC, r16
+
+    ; activar pull-up
+    ldi r16, 0b00001111
+    out PORTC, r16
+
+    ; la puerta arranca cerrada
+    ldi r18, CERRADA
+
+principal:
+
+    ; revisar el estado
+    cpi r18, CERRADA
+    breq puerta_cerrada
+
+    cpi r18, ABRIENDO
+    breq puerta_abriendo
+
+    cpi r18, ABIERTA
+    breq puerta_abierta
+
+    cpi r18, CERRANDO
+    breq puerta_cerrando
+
+    rjmp principal
+
+; --------------------------------------------------
+; PUERTA CERRADA
+; --------------------------------------------------
+
+puerta_cerrada:
+
+    ; PC0 = boton abrir
+    sbis PINC, PC0
+    rjmp abrir
+
+    rjmp principal
+
+abrir:
+
+    ; motor gira para abrir
+    sbi PORTB, PB0
+    cbi PORTB, PB1
+
+    ldi r18, ABRIENDO
+
+    rjmp principal
+
+; --------------------------------------------------
+; ABRIENDO
+; --------------------------------------------------
+
+puerta_abriendo:
+
+    ; PC2 = sensor de puerta abierta
+    sbis PINC, PC2
+    rjmp llego_abierta
+
+    rjmp principal
+
+llego_abierta:
+
+    ; detener motor
+    cbi PORTB, PB0
+    cbi PORTB, PB1
+
+    ldi r18, ABIERTA
+
+    rjmp principal
+
+; --------------------------------------------------
+; PUERTA ABIERTA
+; --------------------------------------------------
+
+puerta_abierta:
+
+    ; PC1 = boton cerrar
+    sbis PINC, PC1
+    rjmp cerrar
+
+    rjmp principal
+
+cerrar:
+
+    ; motor gira al otro lado
+    cbi PORTB, PB0
+    sbi PORTB, PB1
+
+    ldi r18, CERRANDO
+
+    rjmp principal
+
+; --------------------------------------------------
+; CERRANDO
+; --------------------------------------------------
+
+puerta_cerrando:
+
+    ; PC3 = sensor de puerta cerrada
+    sbis PINC, PC3
+    rjmp llego_cerrada
+
+    rjmp principal
+
+llego_cerrada:
+
+    ; detener motor
+    cbi PORTB, PB0
+    cbi PORTB, PB1
+
+    ldi r18, CERRADA
+
+    rjmp principal
