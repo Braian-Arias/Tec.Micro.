@@ -27,6 +27,14 @@ inicio:
     ldi r16, 0b00001111
     out PORTC, r16
 
+    ; PD4, PD5 y PD6 salidas para los leds
+    ldi r16, 0b01110000
+    out DDRD, r16
+
+    ; al iniciar solo prende el led de detenido
+    ldi r16, 0b01000000
+    out PORTD, r16
+
     ; la puerta arranca cerrada
     ldi r18, CERRADA
 
@@ -59,11 +67,22 @@ puerta_cerrada:
 
     rjmp principal
 
+; --------------------------------------------------
+; ABRIR
+; --------------------------------------------------
+
 abrir:
 
     ; motor gira para abrir
     sbi PORTB, PB0
     cbi PORTB, PB1
+
+    ; led abriendo prendido
+    sbi PORTD, PD4
+
+    ; apagar los otros leds
+    cbi PORTD, PD5
+    cbi PORTD, PD6
 
     ldi r18, ABRIENDO
 
@@ -81,11 +100,22 @@ puerta_abriendo:
 
     rjmp principal
 
+; --------------------------------------------------
+; LLEGO ABIERTA
+; --------------------------------------------------
+
 llego_abierta:
 
     ; detener motor
     cbi PORTB, PB0
     cbi PORTB, PB1
+
+    ; apagar leds de movimiento
+    cbi PORTD, PD4
+    cbi PORTD, PD5
+
+    ; prender led detenido
+    sbi PORTD, PD6
 
     ldi r18, ABIERTA
 
@@ -103,11 +133,20 @@ puerta_abierta:
 
     rjmp principal
 
+; --------------------------------------------------
+; CERRAR
+; --------------------------------------------------
+
 cerrar:
 
     ; motor gira al otro lado
     cbi PORTB, PB0
     sbi PORTB, PB1
+
+    ; led cerrando prendido
+    cbi PORTD, PD4
+    sbi PORTD, PD5
+    cbi PORTD, PD6
 
     ldi r18, CERRANDO
 
@@ -125,11 +164,22 @@ puerta_cerrando:
 
     rjmp principal
 
+; --------------------------------------------------
+; LLEGO CERRADA
+; --------------------------------------------------
+
 llego_cerrada:
 
     ; detener motor
     cbi PORTB, PB0
     cbi PORTB, PB1
+
+    ; apagar leds de movimiento
+    cbi PORTD, PD4
+    cbi PORTD, PD5
+
+    ; prender led detenido
+    sbi PORTD, PD6
 
     ldi r18, CERRADA
 
