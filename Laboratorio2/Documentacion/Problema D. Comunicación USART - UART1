@@ -1,0 +1,141 @@
+;========================================================
+; ATmega328P - TRANSMISOR
+; 3 pulsadores -> USART -> ATmega328P receptor
+;
+; PC0 = Bit 0
+; PC1 = Bit 1
+; PC2 = Bit 2
+;
+; USART:
+; PD1 = TX
+;
+; F_CPU = 16 MHz
+; Baud = 9600
+; 8 bits, 1 stop, sin paridad
+;========================================================
+
+.include "m328Pdef.inc"
+
+.def temp = r16
+.def dato = r17
+
+.org 0x0000
+    rjmp RESET
+
+
+;========================================================
+; RESET
+;========================================================
+RESET:
+
+    ; Inicializar Stack
+    ldi temp, HIGH(RAMEND)
+    out SPH, temp
+
+    ldi temp, LOW(RAMEND)
+    out SPL, temp
+
+
+;--------------------------------------------------------
+; PORTC
+; PC0-PC2 = entradas
+; Activar pull-up interno
+;--------------------------------------------------------
+
+    cbi DDRC, PC0
+    cbi DDRC, PC1
+    cbi DDRC, PC2
+
+    sbi PORTC, PC0
+    sbi PORTC, PC1
+    sbi PORTC, PC2
+
+
+;--------------------------------------------------------
+; USART
+; 9600 baudios @ 16 MHz
+;
+; UBRR = 103
+;--------------------------------------------------------
+
+    ldi temp, HIGH(103)
+    sts UBRR0H, temp
+
+    ldi temp, LOW(103)
+    sts UBRR0L, temp
+
+    ; Habilitar transmisor
+    ldi temp, (1<<TXEN0)
+    sts UCSR0B, temp
+
+    ; 8 bits, 1 stop, sin paridad
+    ldi temp, (1<<UCSZ01)|(1<<UCSZ00)
+    sts UCSR0C, temp
+
+
+;========================================================
+; LOOP PRINCIPAL
+;========================================================
+
+MAIN:
+
+    ; Leer PORTC
+    in dato, PINC
+
+    ; Nos quedamos solamente con PC0-PC2
+    andi dato, 0b00000111
+
+    ; Como los pulsadores usan pull-up:
+    ; 1 = no pulsado
+    ; 0 = pulsado
+    ; Invertimos los tres bits
+    ldi temp, 0b00000111
+    eor dato, temp
+
+    ; Enviar dato por USART
+    rcall USART_TX
+
+    ; Pequeña espera
+    rcall DELAY
+
+    rjmp MAIN
+
+
+;========================================================
+; USART TRANSMIT
+; Entrada: dato (r17)
+;========================================================
+
+USART_TX:
+
+WAIT_TX:
+    lds temp, UCSR0A
+
+    ; Esperar hasta que UDRE0 = 1
+    sbrs temp, UDRE0
+    rjmp WAIT_TX
+
+    sts UDR0, dato
+
+    ret
+
+
+;========================================================
+; DELAY
+;========================================================
+
+DELAY:
+
+    ldi r18, 100
+
+D1:
+    ldi r19, 255
+
+D2:
+    dec r19
+    brne D2
+
+    dec r18
+    brne D1
+
+    ret
