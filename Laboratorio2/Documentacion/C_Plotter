@@ -1,0 +1,601 @@
+;Lab_C_Plotter_Voltorb
+; AssemblerApplication8.asm
+; Created: 8/9/2026 16:49:05
+; Author : User
+; Replace with your application code
+.include "m328pdef.inc"
+.equ F_CPU = 16000000
+.equ baud = 9600
+.equ bps = (F_CPU/16/baud)-1  
+.org 0x0000
+RJMP Inicio
+
+;_________________________________________
+Inicio:
+    ; Inicializar stack
+    ldi r16,HIGH(RAMEND)
+    out SPH,r16
+    ldi r16,LOW(RAMEND)
+    out SPL,r16
+
+    ; Inicializar UART
+    rcall uart_init
+
+    ; Mostrar mensaje de bienvenida y menú
+    ldi ZL, LOW(mensaje_inicio<<1)
+    ldi ZH, HIGH(mensaje_inicio<<1)
+    rcall uart_print
+    rcall mostrar_menu
+
+    ; Configurar salidas
+    ldi r16, 0b11111100   ; PD7..PD2 como salida
+    out DDRD, r16
+
+
+main: 
+    rcall uart_rx   ; Esperar comando desde UART
+; Comandos del menú
+    cpi r16,'1'
+    breq cmd1
+    cpi r16,'2'
+    breq cmd2
+	cpi r16,'3'
+    breq cmd3
+	cpi r16,'4'
+    breq cmd4
+    cpi r16,'P'
+    breq cmd5
+	cpi r16,'T'
+    breq cmd6
+
+    rjmp main
+
+;_________________________________________
+; Comandos
+cmd1:
+  ldi ZL, LOW(opcion1_msg<<1)
+  ldi ZH, HIGH(opcion1_msg<<1)
+  rcall uart_print
+  rcall dibujar_triangulo
+  rjmp main
+
+cmd2:
+  ldi ZL, LOW(opcion2_msg<<1)
+  ldi ZH, HIGH(opcion2_msg<<1)
+  rcall uart_print
+  rcall dibujar_circulo
+  rjmp main
+
+cmd3:
+  ldi ZL, LOW(opcion3_msg<<1)
+  ldi ZH, HIGH(opcion3_msg<<1)
+  rcall uart_print
+  rcall dibujar_pentagono
+  rjmp main
+
+cmd4:
+  ldi ZL, LOW(opcion4_msg<<1)
+  ldi ZH, HIGH(opcion4_msg<<1)
+  rcall uart_print
+  rcall dibujar_cruz
+  rjmp main
+
+cmd5:
+  ldi ZL, LOW(opcion5_msg<<1)
+  ldi ZH, HIGH(opcion5_msg<<1)
+  rcall uart_print
+  rcall dibujar_pokemon
+  rjmp main
+
+cmd6:
+  ldi ZL, LOW(opcion6_msg<<1)
+  ldi ZH, HIGH(opcion6_msg<<1)
+  rcall uart_print
+  rcall dibujar_todo
+  rjmp main
+
+dibujar_triangulo:
+    call Q;
+    call Centro;
+    CALL triangulo
+    call delay
+    call Q;Subir solenoide: ;  D3
+    call delay;
+    ret
+
+dibujar_circulo:
+    call Q;Subir solenoide: ;  D3
+    call delay;
+    call Izquierda;
+    CALL circulo;
+    call delay;
+    ret
+
+dibujar_pentagono:
+    call Q;Subir solenoide: ;  D3
+	ret
+
+dibujar_cruz:
+    call Q;Subir solenoide: ;  D3
+    call delay
+    call Izquierda
+    CALL cruz
+	call Q;Subir 
+    call delay
+    ret
+
+dibujar_pokemon:
+    call Q;Subir solenoide: ;  D3
+	ret
+
+dibujar_todo:
+    call Q;
+    call Centro;
+    CALL triangulo
+    call delay
+    call Q;Subir solenoide: ;  D3
+    call delay;
+    call Izquierda;
+    CALL circulo;
+    call delay;
+    call Q;Subir solenoide: ;  D3
+    call Izquierda
+    CALL cruz
+	call Q;Subir 
+    call delay
+    ret
+
+;_________________________________________
+; Menú UART
+mostrar_menu:
+    ldi ZL, LOW(menu_msg<<1)
+    ldi ZH, HIGH(menu_msg<<1)
+    rcall uart_print
+    ldi ZL, LOW(menu_msg1<<1)
+    ldi ZH, HIGH(menu_msg1<<1)
+    rcall uart_print
+    ldi ZL, LOW(menu_msg2<<1)
+    ldi ZH, HIGH(menu_msg2<<1)
+    rcall uart_print
+    ldi ZL, LOW(menu_msg3<<1)
+    ldi ZH, HIGH(menu_msg3<<1)
+    rcall uart_print
+    ldi ZL, LOW(menu_msg4<<1)
+    ldi ZH, HIGH(menu_msg4<<1)
+    rcall uart_print
+	ldi ZL, LOW(menu_msg5<<1)
+    ldi ZH, HIGH(menu_msg5<<1)
+    rcall uart_print
+	ldi ZL, LOW(menu_msg6<<1)
+    ldi ZH, HIGH(menu_msg6<<1)
+    rcall uart_print
+    ret
+
+;_________________________________________
+; Inicializar UART 9600 8N1
+uart_init:
+  ldi r16,HIGH(103)
+  sts UBRR0H,r16
+  ldi r16,LOW(103)
+  sts UBRR0L,r16
+  ldi r16,(1<<UCSZ01)|(1<<UCSZ00)
+  sts UCSR0C,r16
+  ldi r16,(1<<RXEN0)|(1<<TXEN0)
+  sts UCSR0B,r16
+  ret
+
+;_________________________________________________________________________________________________
+; Transmitir carácter por UART
+uart_tx:
+  uart_tx_wait:
+    lds r17,UCSR0A
+    sbrs r17,UDRE0
+    rjmp uart_tx_wait
+  sts UDR0,r16
+  ret
+
+;_________________________________________________________________________________________________
+; Recibir carácter por UART
+uart_rx:
+  uart_rx_wait:
+    lds r17,UCSR0A
+    sbrs r17,RXC0
+    rjmp uart_rx_wait
+  lds r16,UDR0
+  ret
+
+;_________________________________________________________________________________________________
+; Transmitir string desde memoria de programa (terminado en 0)
+; Z = puntero
+uart_print:
+  lpm r16,Z+
+  cpi r16,0
+  breq uart_print_end
+  rcall uart_tx
+  rjmp uart_print
+uart_print_end:
+  ret
+;_________________________________________
+; Mensajes UART
+mensaje_inicio: .db "Bienvenido al Plotter",0x0D,0x0A,0
+menu_msg: .db "Menu:",0x0D,0x0A,0
+menu_msg1: .db "1=Triangulo",0x0D,0x0A,0
+menu_msg2: .db "2=Circulo",0x0D,0x0A,0
+menu_msg3: .db "3=pentagrama",0x0D,0x0A,0,0
+menu_msg4: .db "4=Cruz",0x0D,0x0A,0,0
+menu_msg5: .db "P=Pokemon",0x0D,0x0A,0
+menu_msg6: .db "T=Todo",0x0D,0x0A,0,0
+
+opcion1_msg: .db "Mostrando Triangulo",0x0D,0x0A,0
+opcion2_msg: .db "Mostrando Circulo",0x0D,0x0A,0
+opcion3_msg: .db "Mostrando Pentagrama ",0x0D,0x0A,0
+opcion4_msg: .db "Mostrando Cruz",0x0D,0x0A,0,0
+opcion5_msg: .db "Mostrando Pokemon",0x0D,0x0A,0
+opcion6_msg: .db "Mostrando Todo",0x0D,0x0A,0,0
+;___________________________________________________________________________
+;Pin Digital
+;Conexión                           Pin Digital                 
+;Bajar solenóide X0                 D2
+;Subir solenóide X1                 D3
+;Movimiento hacia abajo X5          D4
+;Movimiento hacia arriba X6         D5
+;Movimiento hacia la izquierda X7   D6
+;Movimiento hacia la derecha X10    D7
+;___________________________________________________________________________ 
+;Comando del plotter
+E:
+;Bajar solenoide: ;  D2
+    ldi r16, 0b00000100
+    out PORTD, r16
+	call delay
+	ret
+Q:
+;Subir solenoide: ;  D3
+    ldi r16, 0b00001000
+    out PORTD, r16
+	call delay
+	ret
+
+WA:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10100100
+    out PORTD, r16
+	call delay
+	ret
+SA:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10010100
+    out PORTD, r16
+	call delay
+	ret
+SD:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01010100
+    out PORTD, r16
+	call delay
+	ret
+WD:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01100100
+    out PORTD, r16
+	call delay
+	ret
+A:
+;Movimiento hacia ARRIBA:           ;D4
+    ldi r16, 0b10000100
+    out PORTD, r16
+	call delay
+	ret
+
+D:
+;Movimiento hacia ABAJO:          ;D5
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delay
+	ret
+W:
+;Movimiento hacia la izquierda:    ;D6
+    ldi r16, 0b00100100
+    out PORTD, r16
+	call delay
+	ret
+S:
+;Movimiento hacia la derecha:      ;D7  
+    ldi r16, 0b00010100
+    out PORTD, r16
+	call delay
+	ret
+
+Centro:
+    ldi r16, 0b10011000
+    out PORTD, r16
+	call delay
+    ldi r16, 0b10011000
+    out PORTD, r16
+	call delay
+	ldi r16, 0b10011000
+    out PORTD, r16
+	call delay
+	ret
+;___________________________________________________________________________
+
+Izquierda:
+CALL Q
+	ldi r16, 0b10001000
+    out PORTD, r16
+	call delay
+    ldi r16, 0b10001000
+    out PORTD, r16
+	call delay
+	ret
+;___________________________________________________________________________
+triangulo:	
+    call E
+	call SD
+	call A
+	call A
+	call WD
+	call Q
+	ret
+;___________________________________________________________________________	
+
+circulo:
+call E
+	call A1
+	call A1
+	call A1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
+	;________________1/4
+	call S1
+	call S1
+	call S1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call D1
+	call S1
+	call D1
+	call S1
+	call D1
+	call S1
+	call D1
+	call S1
+
+	call D1
+	call D1
+	call S1
+
+	call D1
+	call D1
+	call S1
+
+	call D1
+	call D1
+	call S1
+	;________________2/4
+	call D1
+	call D1
+	call D1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+
+	call W1
+	call W1
+	call D1
+
+	call W1
+	call W1
+	call D1
+	
+	call W1
+	call W1
+	call D1
+	;________________3/4
+	call W1
+	call W1
+	call W1
+	call W1
+	call W1
+
+	call A1
+	call W1
+	call W1
+
+	call A1
+	call W1
+	call W1
+
+	call A1
+	call W1
+	call W1
+
+	call A1
+	call W1
+	call A1
+	call W1
+	call A1
+	call W1
+	call A1
+	call W1
+	call A1
+	call W1
+
+	call A1
+	call A1
+	call W1
+
+	call A1
+	call A1
+    call W1
+
+	call A1
+	call A1
+	call W1
+	
+
+call Q
+	
+	ret
+;___________________________________________________________________________
+WA1:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10100100
+    out PORTD, r16
+	call delayy
+	ret
+SA1:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10010100
+    out PORTD, r16
+	call delayy
+	ret
+SD1:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01010100
+    out PORTD, r16
+	call delayy
+	ret
+WD1:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01100100
+    out PORTD, r16
+	call delayy
+	ret
+A1:
+;Movimiento hacia ARRIBA:           ;D4
+    ldi r16, 0b10000100
+    out PORTD, r16
+	call delayy
+	ret
+D1:
+;Movimiento hacia ABAJO:          ;D5
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delayy
+	ret
+W1:
+;Movimiento hacia la izquierda:    ;D6
+    ldi r16, 0b00100100
+    out PORTD, r16
+	call delayy
+	ret
+S1:
+;Movimiento hacia la derecha:      ;D7  
+    ldi r16, 0b00010100
+    out PORTD, r16
+	call delayy
+	ret
+;___________________________________________________________________________	
+	cruz:
+	call E
+	call SA
+	call derecha
+	call WA
+	call E
+	ret
+;___________________________________________________________________________	
+derecha:
+CALL Q
+    ldi r16, 0b01001000
+    out PORTD, r16
+	call delay
+	CALL E
+	ret
+;___________________________________________________________________________	
+Delay:
+    ldi  r19, 134
+    ldi  r20, 200
+    ldi  r21, 199
+L1: dec  r21
+    brne L1
+    dec  r20
+    brne L1
+    dec  r19
+    brne L1
+    ret 
+
+Delayy:
+    ldi  r19, 14
+    ldi  r20, 200
+    ldi  r21, 199
+L2: dec  r21
+    brne L2
+    dec  r20
+    brne L2
+    dec  r19
+    brne L2
+    ret 
