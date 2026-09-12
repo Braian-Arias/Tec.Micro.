@@ -1,94 +1,102 @@
-// ADC= Control de intensidad de LED mediante potenciómetro
+/* ADC= Control de intensidad de LED mediante potenciómetro
+ * GccApplication1.c
+ * salida LED:PB1 y entrada potenciometro: PC0
+ * Created: 11/9/2026 20:08:02
+ * Author : User
+ */ 
 #define F_CPU 16000000UL
 #include <avr/io.h>
 #include <util/delay.h>
-// -----------------------------------------------------------
+
 void ADC_init(void)
 {
-    // AVCC como referencia de voltaje
-    ADMUX = (1 << REFS0);
+	// AVCC como referencia de voltaje
+	ADMUX = (1 << REFS0);
 
-    // Habilitar ADC
-    // Prescaler = 128
-    // Frecuencia ADC = 16 MHz / 128 = 125 kHz
-    ADCSRA = (1 << ADEN) |
-             (1 << ADPS2) |
-             (1 << ADPS1) |
-             (1 << ADPS0);
+    /* Habilitar ADC
+	 * Prescaler = 128
+	 * Frecuencia ADC = 16 MHz / 128 = 125 kHz
+	 */
+	ADCSRA = (1 << ADEN) |
+	(1 << ADPS2) |
+	(1 << ADPS1) |
+	(1 << ADPS0);
 }
-// -----------------------------------------------------------
-// Lectura del ADC
-// Devuelve un valor entre 0 y 1023
+/*  -----------------------------------------------------------
+ *  Lectura del ADC
+ *  Devuelve un valor entre 0 y 1023
+ */
 uint16_t ADC_read(uint8_t channel)
 {
-    // Asegurar que el canal esté entre 0 y 7
-    channel &= 0x07;
+	// Asegurar que el canal esté entre 0 y 7
+	channel &= 0x07;
 
-    // Seleccionar canal
-    ADMUX = (ADMUX & 0xF0) | channel;
+	// Seleccionar canal
+	ADMUX = (ADMUX & 0xF0) | channel;
 
-    // Iniciar conversión
-    ADCSRA |= (1 << ADSC);
+	// Iniciar conversión
+	ADCSRA |= (1 << ADSC);
 
-    // Esperar a que termine
-    while (ADCSRA & (1 << ADSC));
+	// Esperar a que termine
+	while (ADCSRA & (1 << ADSC));
 
-    // Retornar resultado
-    return ADC;
+	// Retornar resultado
+	return ADC;
 }
 
-// -----------------------------------------------------------
-// Inicialización del Timer1 para PWM
-// Salida PWM: OC1A = PB1
-// Frecuencia PWM: 1 kHz
-// Modo: Fast PWM, TOP = ICR1
+/* -----------------------------------------------------------
+ * Inicialización del Timer1 para PWM
+ * Salida PWM: OC1A = PB1
+ * Frecuencia PWM: 1 kHz
+ * Modo: Fast PWM, TOP = ICR1
+ */
 void timer1_init_fastPWM(void)
 {
-    // Configurar PB1 (OC1A) como salida
-    DDRB |= (1 << PB1);
+	// Configurar PB1 (OC1A) como salida
+	DDRB |= (1 << PB1);
 
-    // Fast PWM, modo 14
-    // Salida no invertida en OC1A
-    TCCR1A = (1 << COM1A1) |
-             (1 << WGM11);
+	// Fast PWM, modo 14
+	// Salida no invertida en OC1A
+	TCCR1A = (1 << COM1A1) |
+	(1 << WGM11);
 
-    TCCR1B = (1 << WGM13) |
-             (1 << WGM12) |
-             (1 << CS11);
+	TCCR1B = (1 << WGM13) |
+	(1 << WGM12) |
+	(1 << CS11);
 
-    // Prescaler = 8
-    // PWM = 16 MHz / (8 * (1 + ICR1))
-    // Para 1 kHz:
-    // ICR1 = 1999
-    ICR1 = (F_CPU / (8UL * 1000UL)) - 1;
+	// Prescaler = 8
+	// PWM = 16 MHz / (8 * (1 + ICR1))
+	// Para 1 kHz:
+	// ICR1 = 1999
+	ICR1 = (F_CPU / (8UL * 1000UL)) - 1;
 
-    // Inicialmente LED apagado
-    OCR1A = 0;
+	// Inicialmente LED apagado
+	OCR1A = 0;
 }
-// -----------------------------------------------------------
-// Programa principal
+
 int main(void)
 {
-    uint16_t adc_value;
+	uint16_t adc_value;
 
-    // Inicializar ADC
-    ADC_init();
+	// Inicializar ADC
+	ADC_init();
 
-    // Inicializar PWM
-    timer1_init_fastPWM();
+	// Inicializar PWM
+	timer1_init_fastPWM();
 
-    while (1)
-    {
-        // Leer potenciómetro conectado a ADC0 (PC0)
-        adc_value = ADC_read(0);
+	while (1)
+	{
+		// Leer potenciómetro conectado a ADC0 (PC0)
+		adc_value = ADC_read(0);
 
-        // Convertir ADC (0 - 1023)
-        // a PWM (0 - ICR1)
-        OCR1A = ((uint32_t)adc_value * ICR1) / 1023;
+		// Convertir ADC (0 - 1023)
+		// a PWM (0 - ICR1)
+		OCR1A = ((uint32_t)adc_value * ICR1) / 1023;
 
-        // Pequeño retardo
-        _delay_ms(10);
-    }
+		// Pequeño retardo
+		_delay_ms(10);
+	}
 
-    return 0;
+	return 0;
 }
+
