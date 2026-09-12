@@ -1,4 +1,4 @@
-/* ADC= Control de intensidad de LED mediante potenciómetro
+/* EV6 ADC= Control de intensidad de LED mediante potenciómetro
  * GccApplication1.c
  * salida LED:PB1 y entrada potenciometro: PC0
  * Created: 11/9/2026 20:08:02
@@ -17,10 +17,7 @@ void ADC_init(void)
 	 * Prescaler = 128
 	 * Frecuencia ADC = 16 MHz / 128 = 125 kHz
 	 */
-	ADCSRA = (1 << ADEN) |
-	(1 << ADPS2) |
-	(1 << ADPS1) |
-	(1 << ADPS0);
+	ADCSRA = (1 << ADEN) | (1 << ADPS2) | 	(1 << ADPS1) |	(1 << ADPS0);
 }
 /*  -----------------------------------------------------------
  *  Lectura del ADC
@@ -55,22 +52,23 @@ void timer1_init_fastPWM(void)
 	// Configurar PB1 (OC1A) como salida
 	DDRB |= (1 << PB1);
 
-	// Fast PWM, modo 14
-	// Salida no invertida en OC1A
-	TCCR1A = (1 << COM1A1) |
-	(1 << WGM11);
+    // Configuración del modo Fast PWM con TOP = ICR1 (modo 14)
+    // COM1A1=1: salida no invertida en OC1A
+    // WGM13:WGM12:WGM11=1:1:1 → Modo 14 (Fast PWM con TOP=ICR1)
+    // CS11=1 → Prescaler = 8
+	TCCR1A = (1 << COM1A1) | (1 << WGM11);
+	TCCR1B = (1 << WGM13) |	(1 << WGM12) |	(1 << CS11);
+	
+   /* ----------------------------------------------------------
+    * Frecuencia PWM deseada: 1 kHz
+    * Fórmula: f_PWM = F_CPU / (Prescaler * (1 + ICR1))
+    * Despejando: ICR1 = (F_CPU / (Prescaler * f_PWM)) - 1
+    * ----------------------------------------------------------*/
+	ICR1 = (F_CPU / (8UL * 1000UL)) - 1; // ICR1 = 1999 → PWM de 1 kHz
 
-	TCCR1B = (1 << WGM13) |
-	(1 << WGM12) |
-	(1 << CS11);
 
-	// Prescaler = 8
-	// PWM = 16 MHz / (8 * (1 + ICR1))
-	// Para 1 kHz:
-	// ICR1 = 1999
-	ICR1 = (F_CPU / (8UL * 1000UL)) - 1;
 
-	// Inicialmente LED apagado
+// Duty cycle inicial = 0%
 	OCR1A = 0;
 }
 
@@ -90,9 +88,9 @@ int main(void)
 		adc_value = ADC_read(0);
 
 		// Convertir ADC (0 - 1023)
-		// a PWM (0 - ICR1)
-		OCR1A = ((uint32_t)adc_value * ICR1) / 1023;
-
+		// a PWM (0 - ICR1) ICR1=1999 define el valor máximo del contador del Timer1.
+		OCR1A = ((uint32_t)adc_value * ICR1-1) / 1023; //es una regla de 3
+        // PWM?=ADC*PWM max)/ADC max
 		// Pequeño retardo
 		_delay_ms(10);
 	}
