@@ -70,7 +70,7 @@ cmd3:
   ldi ZL, LOW(opcion3_msg<<1)
   ldi ZH, HIGH(opcion3_msg<<1)
   rcall uart_print
-  rcall dibujar_pentagono
+  rcall dibujar_pentagrama
   rjmp main
 
 cmd4:
@@ -111,8 +111,11 @@ dibujar_circulo:
     call delay;
     ret
 
-dibujar_pentagono:
+dibujar_pentagrama:
     call Q;Subir solenoide: ;  D3
+    call Izquierda;
+    CALL pentagrama;
+    call delay;
 	ret
 
 dibujar_cruz:
@@ -126,6 +129,11 @@ dibujar_cruz:
 
 dibujar_pokemon:
     call Q;Subir solenoide: ;  D3
+    call delay
+    call Izquierda
+    CALL pokemon
+	call Q;Subir 
+    call delay
 	ret
 
 dibujar_todo:
@@ -134,13 +142,23 @@ dibujar_todo:
     CALL triangulo
     call delay
     call Q;Subir solenoide: ;  D3
+    call Izquierda
+    CALL cruz
+	call Q;Subir 
+    call delay
+    call Q;Subir solenoide: ;  D3
+    call Izquierda
+    CALL pentagrama
+	call Q;Subir 
+    call delay
+    call Q;Subir solenoide: ;  D3
     call delay;
     call Izquierda;
     CALL circulo;
     call delay;
     call Q;Subir solenoide: ;  D3
     call Izquierda
-    CALL cruz
+    CALL pokemon
 	call Q;Subir 
     call delay
     ret
@@ -338,8 +356,61 @@ triangulo:
 	call Q
 	ret
 ;___________________________________________________________________________	
+pentagrama:	
+    call E
+	call A
+	call A
+	call WD
+	call SD
+    call Q              ; Subir solenoide
+	call A
+	call W
+    call E
+    call SDD
+    call SDD
+    call WAA
+    call SAA
+    call WDD
+    call WDD
+    call Q
 
+call delay
+    ret
+WAA:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10100100
+    out PORTD, r16
+    ldi r16, 0b10000100
+    out PORTD, r16
+	call delay
+	ret
+SAA:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10010100
+    out PORTD, r16
+    ldi r16, 0b10000100
+    out PORTD, r16
+	call delay
+	ret
+SDD:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01010100
+    out PORTD, r16
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delay
+	ret
+WDD:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01100100
+    out PORTD, r16
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delay
+	ret
+;___________________________________________________________________________
 circulo:
+call Centro
 call E
 	call A1
 	call A1
@@ -505,10 +576,7 @@ call E
 	call A1
 	call A1
 	call W1
-	
-
-call Q
-	
+    call Q
 	ret
 ;___________________________________________________________________________
 WA1:
@@ -567,7 +635,71 @@ S1:
 	call WA
 	call E
 	ret
-;___________________________________________________________________________	
+;___________________________________________________________________________
+pokemon:
+	call Centro
+	call Q
+	call S
+	call S
+	call A
+	call A
+	call E
+call D1
+	call D1
+	call D1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+
+
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+	call W1
+	call D1
+
+	call W1
+	call W1
+	call D1
+
+	call W1
+	call W1
+	call D1
+	
+	call W1
+	call W1
+	call D1
+    call Q
+    call A
+    call A
+    call A
+    call A
+    call E
+    call W
+    call SD
+    call Q
+    call D
+    call WD
+    call S
+    call Q
+    ret
+;___________________________________________________________________________
 derecha:
 CALL Q
     ldi r16, 0b01001000
@@ -575,7 +707,8 @@ CALL Q
 	call delay
 	CALL E
 	ret
-;___________________________________________________________________________	
+;___________________________________________________________________________
+
 Delay:
     ldi  r19, 134
     ldi  r20, 200
