@@ -18,7 +18,7 @@ Inicio:
 ;______________________________________________________________________
   ;como todo es salida para la matriz menos tx y rx todo salida y despues defino
   ; PORTD: PD0 RX, PD1 TX, PD2-PD7 matriz
-  ldi r16,0b11111100
+  ldi r16,0b11111110
   out DDRD,r16
 
   ; PORTB: PB0-PB5 matriz
@@ -30,6 +30,7 @@ Inicio:
   out DDRC,r16
 
   ; Inicializar UART
+  ldi r22,40
   rcall uart_init
 ;______________________________________________________________________
  ; Mostrar mensaje de bienvenida
@@ -54,6 +55,14 @@ main_loop:
   cpi r16,'3'
   breq cmd3
 
+  cpi r16,'p'
+  breq cmd_palabra
+
+  cpi r16,'+'
+  breq cmd_rapido
+
+  cpi r16,'-'
+  breq cmd_lento
   rjmp main_loop
 
 ;______________________________________________________________________
@@ -66,7 +75,6 @@ cmd1:
   rcall mostrar_menu
   rjmp main_loop
 
-
 cmd2:
   rcall guino
   ldi ZL,LOW(mensaje_guino<<1)
@@ -76,7 +84,6 @@ cmd2:
   rcall mostrar_menu
   rjmp main_loop
 
-
 cmd3:
   rcall corazon
   ldi ZL,LOW(mensaje_corazon<<1)
@@ -84,6 +91,46 @@ cmd3:
   rcall uart_print
 
   rcall mostrar_menu
+  rjmp main_loop
+
+cmd_palabra:
+ 
+  ldi ZL,LOW(mensaje_palabra<<1)
+  ldi ZH,HIGH(mensaje_palabra<<1)
+  rcall uart_print
+  rcall palabra
+  rcall mostrar_menu
+  rjmp main_loop
+
+cmd_rapido:
+
+  cpi r22,5
+  breq velocidad_maxima
+
+  subi r22,5
+
+velocidad_maxima:
+
+  ldi ZL,LOW(mensaje_rapido<<1)
+  ldi ZH,HIGH(mensaje_rapido<<1)
+  rcall uart_print
+
+  rjmp main_loop
+
+
+cmd_lento:
+
+  cpi r22,100
+  breq velocidad_minima
+
+  subi r22,-5
+
+velocidad_minima:
+
+  ldi ZL,LOW(mensaje_lento<<1)
+  ldi ZH,HIGH(mensaje_lento<<1)
+  rcall uart_print
+
   rjmp main_loop
 ;______________________________________________________________________
 mostrar_menu:
@@ -170,6 +217,24 @@ mensaje_corazon:
 
   .db 0x0D,0x0A
   .db "Seleccion: CORAZON",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+mensaje_palabra:
+
+  .db 13,10
+  .db "Mostrando: COCOS LOCOS!",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+mensaje_rapido:
+
+  .db 13,10
+  .db "Velocidad aumentada",0x0D,0x0A
+  .db 0x0D,0x0A
+;______________________________________________________________________
+mensaje_lento:
+
+  .db 13,10
+  .db "Velocidad reducida",0x0D,0x0A
   .db 0x0D,0x0A
 ;______________________________________________________________________
 sonrisa:
@@ -275,6 +340,89 @@ corazon:
   rcall mostrar_fila
   ret
 ;______________________________________________________________________
+letra_C:
+
+  .db 0b00111100
+  .db 0b01100110
+  .db 0b11000000
+  .db 0b11000000
+  .db 0b11000000
+  .db 0b01100110
+  .db 0b00111100
+  .db 0b00000000
+;______________________________________________________________________
+letra_O:
+
+  .db 0b00111100
+  .db 0b01100110
+  .db 0b11000011
+  .db 0b11000011
+  .db 0b11000011
+  .db 0b01100110
+  .db 0b00111100
+  .db 0b00000000
+;______________________________________________________________________
+letra_S:
+
+  .db 0b00111110
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b00111100
+  .db 0b00000110
+  .db 0b00000110
+  .db 0b01111100
+  .db 0b00000000
+;______________________________________________________________________
+letra_L:
+
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b01100000
+  .db 0b01111110
+  .db 0b00000000
+;______________________________________________________________________
+letra_espacio:
+
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+  .db 0b00000000
+;______________________________________________________________________
+letra_exclamacion:
+
+  .db 0b00011000
+  .db 0b00011000
+  .db 0b00011000
+  .db 0b00011000
+  .db 0b00011000
+  .db 0b00000000
+  .db 0b00011000
+  .db 0b00000000
+;______________________________________________________________________
+palabra:
+
+  rcall letra_C
+  rcall letra_O
+  rcall letra_C
+  rcall letra_O
+  rcall letra_S
+  rcall letra_espacio
+  rcall letra_L
+  rcall letra_O
+  rcall letra_C
+  rcall letra_O
+  rcall letra_S
+  rcall letra_exclamacion
+  ret
+;______________________________________________________________________
+
 ; MOSTRAR UNA FILA
 ;
 ; r16 = dibujo de la fila
@@ -285,7 +433,6 @@ mostrar_fila:
 
     ; guardar dibujo
     mov r21, r16
-
 
     ; apagar F1-F4
     ; mantener pull-up D2 y D4
