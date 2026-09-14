@@ -58,7 +58,7 @@ main_loop:
 
 ;______________________________________________________________________
 cmd1:
-
+  rcall sonrisa
   ldi ZL,LOW(mensaje_sonrisa<<1)
   ldi ZH,HIGH(mensaje_sonrisa<<1)
   rcall uart_print
@@ -68,7 +68,7 @@ cmd1:
 
 
 cmd2:
-
+  rcall guino
   ldi ZL,LOW(mensaje_guino<<1)
   ldi ZH,HIGH(mensaje_guino<<1)
   rcall uart_print
@@ -78,7 +78,7 @@ cmd2:
 
 
 cmd3:
-
+  rcall corazon
   ldi ZL,LOW(mensaje_corazon<<1)
   ldi ZH,HIGH(mensaje_corazon<<1)
   rcall uart_print
@@ -172,4 +172,283 @@ mensaje_corazon:
   .db "Seleccion: CORAZON",0x0D,0x0A
   .db 0x0D,0x0A
 ;______________________________________________________________________
+sonrisa:
+  ldi r16,0b00111100
+  ldi r17,0
+  rcall mostrar_fila
 
+  ldi r16,0b01000010
+  ldi r17,1
+  rcall mostrar_fila
+
+  ldi r16,0b10100101
+  ldi r17,2
+  rcall mostrar_fila
+
+  ldi r16,0b10000001
+  ldi r17,3
+  rcall mostrar_fila
+
+  ldi r16,0b10000001
+  ldi r17,4
+  rcall mostrar_fila
+
+  ldi r16,0b10100101
+  ldi r17,5
+  rcall mostrar_fila
+
+  ldi r16,0b01011010
+  ldi r17,6
+  rcall mostrar_fila
+
+  ldi r16,0b00111100
+  ldi r17,7
+  rcall mostrar_fila
+  ret
+;______________________________________________________________________
+guino:
+  ldi r16,0b00111100
+  ldi r17,0
+  rcall mostrar_fila
+
+  ldi r16,0b01000010
+  ldi r17,1
+  rcall mostrar_fila
+
+  ldi r16,0b10100001
+  ldi r17,2
+  rcall mostrar_fila
+
+  ldi r16,0b10011001
+  ldi r17,3
+  rcall mostrar_fila
+
+  ldi r16,0b10000001
+  ldi r17,4
+  rcall mostrar_fila
+
+  ldi r16,0b10100101
+  ldi r17,5
+  rcall mostrar_fila
+
+  ldi r16,0b01011010
+  ldi r17,6
+  rcall mostrar_fila
+
+  ldi r16,0b00111100
+  ldi r17,7
+  rcall mostrar_fila
+  ret
+;______________________________________________________________________
+
+corazon:
+  ldi r16,0b00000000
+  ldi r17,0
+  rcall mostrar_fila
+
+  ldi r16,0b01100110
+  ldi r17,1
+  rcall mostrar_fila
+
+  ldi r16,0b11111111
+  ldi r17,2
+  rcall mostrar_fila
+
+  ldi r16,0b11111111
+  ldi r17,3
+  rcall mostrar_fila
+
+  ldi r16,0b01111110
+  ldi r17,4
+  rcall mostrar_fila
+
+  ldi r16,0b00111100
+  ldi r17,5
+  rcall mostrar_fila
+
+  ldi r16,0b00011000
+  ldi r17,6
+  rcall mostrar_fila
+
+  ldi r16,0b00000000
+  ldi r17,7
+  rcall mostrar_fila
+  ret
+;______________________________________________________________________
+; MOSTRAR UNA FILA
+;
+; r16 = dibujo de la fila
+; r17 = numero de fila
+;______________________________________________________________________
+
+mostrar_fila:
+
+    ; guardar dibujo
+    mov r21, r16
+
+
+    ; apagar F1-F4
+    ; mantener pull-up D2 y D4
+
+    ldi r19, 0b11111100
+    out PORTD, r19
+
+
+    ; apagar F5-F8
+    ; apagar C1 y C2
+
+    ldi r19, 0b00001111
+    out PORTB, r19
+
+
+    ; apagar C3-C8
+
+    clr r19
+    out PORTC, r19
+
+
+    ; ----------------------------------------
+    ; C1 y C2
+    ;
+    ; bit 7 -> C1
+    ; bit 6 -> C2
+    ; ----------------------------------------
+
+    mov r19, r21
+    andi r19, 0b11000000
+
+    lsr r19
+    lsr r19
+
+    ori r19, 0b00001111
+
+    out PORTB, r19
+
+
+    ; ----------------------------------------
+    ; C3 hasta C8
+    ; ----------------------------------------
+
+    mov r19, r21
+    andi r19, 0b00111111
+
+    out PORTC, r19
+
+
+    ; elegir fila
+
+    cpi r17, 0
+    brne revisar_f2
+    rjmp f1
+
+
+revisar_f2:
+
+    cpi r17, 1
+    brne revisar_f3
+    rjmp f2
+
+
+revisar_f3:
+
+    cpi r17, 2
+    brne revisar_f4
+    rjmp f3
+
+
+revisar_f4:
+
+    cpi r17, 3
+    brne revisar_f5
+    rjmp f4
+
+
+revisar_f5:
+
+    cpi r17, 4
+    brne revisar_f6
+    rjmp f5
+
+
+revisar_f6:
+
+    cpi r17, 5
+    brne revisar_f7
+    rjmp f6
+
+
+revisar_f7:
+
+    cpi r17, 6
+    brne usar_f8
+    rjmp f7
+
+
+usar_f8:
+
+    rjmp f8
+
+; ----------------------------------------------------------
+; FILAS
+; ----------------------------------------------------------
+
+f1:
+
+    cbi PORTD, PD3
+    rjmp mantener
+
+
+f2:
+
+    cbi PORTD, PD5
+    rjmp mantener
+
+
+f3:
+
+    cbi PORTD, PD6
+    rjmp mantener
+
+
+f4:
+
+    cbi PORTD, PD7
+    rjmp mantener
+
+
+f5:
+
+    cbi PORTB, PB0
+    rjmp mantener
+
+
+f6:
+
+    cbi PORTB, PB1
+    rjmp mantener
+
+
+f7:
+
+    cbi PORTB, PB2
+    rjmp mantener
+
+
+f8:
+
+    cbi PORTB, PB3
+
+; -----------------------------------------------------------
+; PAUSA PARA REFRESCAR MATRIZ
+; -----------------------------------------------------------
+
+mantener:
+
+    ldi r20, 60
+
+espera:
+
+    dec r20
+    brne espera
+
+    ret
