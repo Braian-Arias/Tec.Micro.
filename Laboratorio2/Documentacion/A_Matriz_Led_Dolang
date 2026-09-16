@@ -191,12 +191,12 @@ menu:
 
   .db 0x0D,0x0A
   .db "----------- MENU -----------",0x0D,0x0A
-  .db "1 - Sonrisa",0x0D,0x0A,0
-  .db "2 - Guino",0x0D,0x0A,0
-  .db "3 - Corazon",0x0D,0x0A,0
-  .db "4 - Palabra",0x0D,0x0A,0
-  .db "5 - rapido",0x0D,0x0A,0
-  .db "6 - lento",0x0D,0x0A,0
+  .db "1  Sonrisa",0x0D,0x0A,0
+  .db "2  Guino",0x0D,0x0A,0
+  .db "3  Corazon",0x0D,0x0A,0
+  .db "P  Palabra",0x0D,0x0A,0
+  .db "+  rapido",0x0D,0x0A,0
+  .db "-  lento",0x0D,0x0A,0
   .db "----------------------------",0x0D,0x0A
   .db "Seleccione una opcion: ",0x0D,0x0A,0 ;algunos se arreglan con 0 y otros no??
 ;______________________________________________________________________
@@ -340,132 +340,113 @@ corazon:
   ret
 ;______________________________________________________________________
 letra_C:
+    .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
 
-  .db 0b00111100
-  .db 0b01100110
-  .db 0b11000000
-  .db 0b11000000
-  .db 0b11000000
-  .db 0b01100110
-  .db 0b00111100
-  .db 0b00000000
-;______________________________________________________________________
 letra_O:
+    .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
 
-  .db 0b00111100
-  .db 0b01100110
-  .db 0b11000011
-  .db 0b11000011
-  .db 0b11000011
-  .db 0b01100110
-  .db 0b00111100
-  .db 0b00000000
-;______________________________________________________________________
 letra_S:
+    .db 0x3F,0x40,0x40,0x3E,0x01,0x01,0x7E,0x00
 
-  .db 0b00111110
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b00111100
-  .db 0b00000110
-  .db 0b00000110
-  .db 0b01111100
-  .db 0b00000000
-;______________________________________________________________________
 letra_L:
+    .db 0x7F,0x40,0x40,0x40,0x40,0x40,0x40,0x00
 
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b01100000
-  .db 0b01111110
-  .db 0b00000000
-;______________________________________________________________________
 letra_espacio:
+    .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-  .db 0b00000000
-;______________________________________________________________________
 letra_exclamacion:
-
-  .db 0b00011000
-  .db 0b00011000
-  .db 0b00011000
-  .db 0b00011000
-  .db 0b00011000
-  .db 0b00000000
-  .db 0b00011000
-  .db 0b00000000
+    .db 0x00,0x00,0x7F,0x7F,0x00,0x00,0x00,0x00
 ;______________________________________________________________________
 palabra:
 
   ; C
   ldi ZL,LOW(letra_C<<1)
   ldi ZH,HIGH(letra_C<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; O
   ldi ZL,LOW(letra_O<<1)
   ldi ZH,HIGH(letra_O<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; C
   ldi ZL,LOW(letra_C<<1)
   ldi ZH,HIGH(letra_C<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; O
   ldi ZL,LOW(letra_O<<1)
   ldi ZH,HIGH(letra_O<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; S
   ldi ZL,LOW(letra_S<<1)
   ldi ZH,HIGH(letra_S<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
-  ; espacio
+  ; Espacio entre palabras
   ldi ZL,LOW(letra_espacio<<1)
   ldi ZH,HIGH(letra_espacio<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; L
   ldi ZL,LOW(letra_L<<1)
   ldi ZH,HIGH(letra_L<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; O
   ldi ZL,LOW(letra_O<<1)
   ldi ZH,HIGH(letra_O<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; C
   ldi ZL,LOW(letra_C<<1)
   ldi ZH,HIGH(letra_C<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; O
   ldi ZL,LOW(letra_O<<1)
   ldi ZH,HIGH(letra_O<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
   ; S
   ldi ZL,LOW(letra_S<<1)
   ldi ZH,HIGH(letra_S<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
 
-  ; !
+  ; Exclamacion
   ldi ZL,LOW(letra_exclamacion<<1)
   ldi ZH,HIGH(letra_exclamacion<<1)
-  rcall mostrar_letra
+  rcall cargar_letra_scroll
+
+  ret
+;______________________________________________________________________
+cargar_letra_scroll:
+
+  ldi YL,LOW(buffer)
+  ldi YH,HIGH(buffer)
+
+  ldi r18,8
+
+cargar_letra_loop:
+
+  lpm r16,Z+
+  st Y+,r16
+
+  dec r18
+  brne cargar_letra_loop
+
+  ; Desplazar la letra ocho veces
+  ldi r23,8
+
+desplazar_letra_loop:
+
+  rcall mostrar_buffer
+  rcall desplazar
+
+  dec r23
+  brne desplazar_letra_loop
+
   ret
 ;______________________________________________________________________
 ; MOSTRAR LETRA
