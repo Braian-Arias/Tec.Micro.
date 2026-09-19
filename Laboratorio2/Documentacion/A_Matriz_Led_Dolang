@@ -35,28 +35,37 @@ Inicio:
   ldi r16,0b00111111
   out DDRB,r16
 
-  ; PORTC: PC0-PC5 matriz
-  ldi r16,0b00111111
+  ; PORTC: PC0-PC3 matriz
+  ldi r16,0b00001111
   out DDRC,r16
 
+  ; Velocidad inicial
+  ldi r16, VEL_INICIAL
+  sts velocidad, r16
+
   ; Inicializar UART
-  ldi r22,40
+  rcall apagar_matriz
   rcall uart_init
 ;______________________________________________________________________
  ; Mostrar mensaje de bienvenida
   ldi ZL,LOW(mensaje_inicio<<1)
   ldi ZH,HIGH(mensaje_inicio<<1)
   rcall uart_print
-
-
-  rcall mostrar_menu
-
 ;______________________________________________________________________
 main_loop:
+  rcall mostrar_menu
   ; Esperar y leer carácter
+esperar_comando:
   rcall uart_rx
 
+   ; Ignorar ENTER
+   cpi r16, 0x0D
+   breq esperar_comando
+   cpi r16, 0x0A
+   breq esperar_comando
+
   ; Comparar comando recibido
+Comparar:
   cpi r16,'1'
   breq cmd1
   cpi r16,'2'
@@ -69,7 +78,7 @@ main_loop:
   breq cmd_rapido
   cpi r16,'-'
   breq cmd_lento
-  rjmp main_loop
+  rjmp esperar_comando
 
 ;______________________________________________________________________
 cmd1:
@@ -77,24 +86,21 @@ cmd1:
   ldi ZH,HIGH(mensaje_sonrisa<<1)
   rcall uart_print
   rcall sonrisa
-  rcall mostrar_menu
-  rjmp main_loop
+  rjmp esperar_comando
 
 cmd2:
   ldi ZL,LOW(mensaje_guino<<1)
   ldi ZH,HIGH(mensaje_guino<<1)
   rcall uart_print
   rcall guino
-  rcall mostrar_menu
-  rjmp main_loop
+  rjmp esperar_comando
 
 cmd3:
   ldi ZL,LOW(mensaje_corazon<<1)
   ldi ZH,HIGH(mensaje_corazon<<1)
   rcall uart_print
   rcall corazon
-  rcall mostrar_menu
-  rjmp main_loop
+  rjmp esperar_comando
 
 cmd_palabra:
  
@@ -102,38 +108,47 @@ cmd_palabra:
   ldi ZH,HIGH(mensaje_palabra<<1)
   rcall uart_print
   rcall palabra
-  rcall mostrar_menu
-  rjmp main_loop
+  rjmp esperar_comando
 
 cmd_rapido:
-
-  cpi r22,5
-  breq velocidad_maxima
-  subi r22,5
-
-velocidad_maxima:
+    lds r16, velocidad
+    cpi r16, VEL_MIN ; Menor valor = mas rapido
+    breq rapido_fin
+    brlo rapido_fin
+    dec r16
+    dec r16
+    ; No permitir bajar del mínimo
+    cpi r16, VEL_MIN
+    brsh guardar_rapido
+    ldi r16, VEL_MIN
+guardar_rapido:
+    sts velocidad, r16
+rapido_fin:
 
   ldi ZL,LOW(mensaje_rapido<<1)
   ldi ZH,HIGH(mensaje_rapido<<1)
   rcall uart_print
 
-  rjmp main_loop
+  ret
 
 
 cmd_lento:
-
-  cpi r22,100
-  breq velocidad_minima
-
-  subi r22,-5
-
-velocidad_minima:
+    lds r16, velocidad
+    cpi r16, VEL_MAX ; Mayor valor = mas lento
+    brsh lento_fin
+    inc r16
+    inc r16
+    cpi r16, VEL_MAX
+    brlo guardar_lento
+    ldi r16, VEL_MAX
+guardar_lento:
+    sts velocidad, r16
+lento_fin:
 
   ldi ZL,LOW(mensaje_lento<<1)
   ldi ZH,HIGH(mensaje_lento<<1)
   rcall uart_print
-
-  rjmp main_loop
+  ret
 ;______________________________________________________________________
 mostrar_menu:
 
@@ -144,7 +159,7 @@ mostrar_menu:
 ;______________________________________________________________________
 uart_init:
 
-  ldi r16,HIGH(bps)
+  clr r16
   sts UBRR0H,r16
   ldi r16,LOW(bps)
   sts UBRR0L,r16
@@ -162,6 +177,17 @@ esperar_tx:
   rjmp esperar_tx
   sts UDR0,r16
   ret
+;______________________________________________________________________
+uart_rx_no_bloqueante:
+   lds r17, UCSR0A
+   sbrs r17, RXC0
+   rjmp uart_no_hay
+   lds r16, UDR0    
+   sec
+   ret
+uart_no_hay:
+   clc
+   ret
 ;______________________________________________________________________
 ; Recibir carácter por UART
 uart_rx:
@@ -188,7 +214,7 @@ mensaje_inicio:
 
   .db 0x0D,0x0A
   .db "================================",0x0D,0x0A
-  .db "       MATRIZ DE LEDS",0x0D,0x0A,0
+  .db "---------MATRIZ DE LEDS---------",0x0D,0x0A
   .db "================================",0x0D,0x0A
   .db "Bienvenido!",0x0D,0x0A,0
   .db 0x0D,0x0A
@@ -208,594 +234,335 @@ menu:
   .db 0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_sonrisa:
-
-  .db 0x0D,0x0A
-  .db "Seleccion: SONRISA",0x0D,0x0A
-  .db 0x0D,0x0A
+  .db "Seleccion: SONRISA",0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_guino:
-
-  .db 0x0D,0x0A
-  .db "Seleccion: GUINO",0x0D,0x0A
-  .db 0x0D,0x0A
+  .db "Seleccion: GUINO",0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_corazon:
-
-  .db 0x0D,0x0A
-  .db "Seleccion: CORAZON",0x0D,0x0A
-  .db 0x0D,0x0A
+  .db "Seleccion: CORAZON",0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_palabra:
-
-  .db 0x0D,0x0A
   .db "Mostrando: COCOS LOCOS!",0x0D,0x0A,0
-  .db 0x0D,0x0A
 ;______________________________________________________________________
 mensaje_rapido:
-
-  .db 0x0D,0x0A
   .db "Velocidad aumentada",0x0D,0x0A,0
-  .db 0x0D,0x0A
 ;______________________________________________________________________
 mensaje_lento:
-
-  .db 0x0D,0x0A
-  .db "Velocidad reducida",0x0D,0x0A
-  .db 0x0D,0x0A
+  .db "Velocidad reducida",0x0D,0x0A,0
 ;______________________________________________________________________
 sonrisa:
-  ldi r16,0b00111100
-  ldi r17,0
-  rcall mostrar_fila
-
-  ldi r16,0b01000010
-  ldi r17,1
-  rcall mostrar_fila
-
-  ldi r16,0b10100101
-  ldi r17,2
-  rcall mostrar_fila
-
-  ldi r16,0b10000001
-  ldi r17,3
-  rcall mostrar_fila
-
-  ldi r16,0b10000001
-  ldi r17,4
-  rcall mostrar_fila
-
-  ldi r16,0b10100101
-  ldi r17,5
-  rcall mostrar_fila
-
-  ldi r16,0b01011010
-  ldi r17,6
-  rcall mostrar_fila
-
-  ldi r16,0b00111100
-  ldi r17,7
-  rcall mostrar_fila
-  rjmp sonrisa
+    ; Cargar sonrisa
+    ldi ZL, LOW(figura_sonrisa<<1)
+    ldi ZH, HIGH(figura_sonrisa<<1)
+    rcall cargar_figura
+    ; Mostrar continuamente
+    rcall mostrar_figura
+    ret
+figura_sonrisa:
+  .db 0x3C,0x42,0x95,0xA1,0xA1,0x95,0x42,0x3C
 ;______________________________________________________________________
 guino:
-  ldi r16,0b00111100
-  ldi r17,0
-  rcall mostrar_fila
-
-  ldi r16,0b01000010
-  ldi r17,1
-  rcall mostrar_fila
-
-  ldi r16,0b10100001
-  ldi r17,2
-  rcall mostrar_fila
-
-  ldi r16,0b10011001
-  ldi r17,3
-  rcall mostrar_fila
-
-  ldi r16,0b10000001
-  ldi r17,4
-  rcall mostrar_fila
-
-  ldi r16,0b10100101
-  ldi r17,5
-  rcall mostrar_fila
-
-  ldi r16,0b01011010
-  ldi r17,6
-  rcall mostrar_fila
-
-  ldi r16,0b00111100
-  ldi r17,7
-  rcall mostrar_fila
-  ret
+    ; Cargar guino
+    ldi ZL, LOW(figura_guino<<1)
+    ldi ZH, HIGH(figura_guino<<1)
+    rcall cargar_figura
+    ; Mostrar continuamente
+    rcall mostrar_figura
+    ret
+figura_guino:
+  .db 0x3C,0x42,0x95,0xA1,0xA1,0x95,0x42,0x3C
 ;______________________________________________________________________
 
 corazon:
-  ldi r16,0b00000000
-  ldi r17,0
-  rcall mostrar_fila
-
-  ldi r16,0b01100110
-  ldi r17,1
-  rcall mostrar_fila
-
-  ldi r16,0b11111111
-  ldi r17,2
-  rcall mostrar_fila
-
-  ldi r16,0b11111111
-  ldi r17,3
-  rcall mostrar_fila
-
-  ldi r16,0b01111110
-  ldi r17,4
-  rcall mostrar_fila
-
-  ldi r16,0b00111100
-  ldi r17,5
-  rcall mostrar_fila
-
-  ldi r16,0b00011000
-  ldi r17,6
-  rcall mostrar_fila
-
-  ldi r16,0b00000000
-  ldi r17,7
-  rcall mostrar_fila
-  cpi r16,'p'
-  breq menu
-  rjmp corazon
+    ; Cargar guino
+    ldi ZL, LOW(figura_corazon<<1)
+    ldi ZH, HIGH(figura_corazon<<1)
+    rcall cargar_figura
+    ; Mostrar continuamente
+    rcall mostrar_figura
+    ret
+figura_corazon:
+  .db 0x0C,0x1E,0x3E,0x7C,0x7C,0x3E,0x1E,0x0C
 ;______________________________________________________________________
-letra_C:
-    .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
+palabra_led:
+;letra_espacio:
+  .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+;letra_C:
+  .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
+;letra_O:
+  .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
+;letra_C:
+  .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
+;letra_O:
+  .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
+;letra_S:
+  .db 0x3F,0x40,0x40,0x3E,0x01,0x01,0x7E,0x00
 
-letra_O:
-    .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
+;letra_espacio:
+  .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 
-letra_S:
-    .db 0x3F,0x40,0x40,0x3E,0x01,0x01,0x7E,0x00
+;letra_L:
+  .db 0x7F,0x40,0x40,0x40,0x40,0x40,0x40,0x00
+;letra_O:
+  .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
+;letra_C:
+  .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
+;letra_O:
+  .db 0x3E,0x41,0x41,0x41,0x41,0x41,0x3E,0x00
+;letra_S:
+  .db 0x3F,0x40,0x40,0x3E,0x01,0x01,0x7E,0x00
 
-letra_L:
-    .db 0x7F,0x40,0x40,0x40,0x40,0x40,0x40,0x00
-
-letra_espacio:
-    .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-
-letra_exclamacion:
-    .db 0x00,0x00,0x7F,0x7F,0x00,0x00,0x00,0x00
+;letra_exclamacion:
+  .db 0x00,0x00,0x7F,0x7F,0x00,0x00,0x00,0x00
+;letra_espacio:
+  .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00   
+;Fin del mensaje
+  .db 0xFF,0xFF
 ;______________________________________________________________________
 palabra:
 
-  ; C
-  ldi ZL,LOW(letra_C<<1)
-  ldi ZH,HIGH(letra_C<<1)
-  rcall cargar_letra_scroll
+    ; Comenzar desde la primera columna
+    ldi r24, LOW(palabra_led<<1)
+    ldi r25, HIGH(palabra_led<<1)
+scroll_nueva_posicion:
+    movw r30, r24
+    lpm r16, Z
+    cpi r16, 0xFF
+    breq scroll_reiniciar
+    movw r30, r24
+    ldi XL, LOW(buffer)
+    ldi XH, HIGH(buffer)
+    ldi r18, 8
+    ; r23 indica si encontramos el final
+    clr r23
 
-  ; O
-  ldi ZL,LOW(letra_O<<1)
-  ldi ZH,HIGH(letra_O<<1)
-  rcall cargar_letra_scroll
+scroll_copiar:
+    tst r23
+    brne scroll_cero
+    lpm r16, Z+
+    cpi r16, 0xFF
+    brne scroll_guardar
+    ; Encontramos fin de mensaje
+    ldi r23, 1
 
-  ; C
-  ldi ZL,LOW(letra_C<<1)
-  ldi ZH,HIGH(letra_C<<1)
-  rcall cargar_letra_scroll
+scroll_cero:
+    clr r16
+scroll_guardar:
+    st X+, r16
+    dec r18
+    brne scroll_copiar
+    lds r22, velocidad
+scroll_refresco:
+    rcall mostrar_frame
+    ; Revisar UART sin detener la matriz
+    rcall uart_rx_no_bloqueante
+    ; Carry = 0 -> no llegó nada
+    brcc scroll_sin_comando
+    cpi r16, '+'
+    breq scroll_rapido
+    cpi r16, '-'
+    breq scroll_lento
+    cpi r16, 'M'
+    breq scroll_salir
+    cpi r16, 'm'
+    breq scroll_salir
 
-  ; O
-  ldi ZL,LOW(letra_O<<1)
-  ldi ZH,HIGH(letra_O<<1)
-  rcall cargar_letra_scroll
+scroll_sin_comando:
+    dec r22
+    brne scroll_refresco
+    ; Avanzar una columna
+    adiw r24, 1
+    rjmp scroll_nueva_posicion
+scroll_rapido:
+    rcall cmd_rapido
+    lds r22, velocidad
+    rjmp scroll_refresco
+scroll_lento:
+    rcall cmd_lento
+    lds r22, velocidad
+    rjmp scroll_refresco
+scroll_reiniciar:
+    ; Volver al inicio para hacerlo continuo
+    ldi r24, LOW(palabra_led<<1)
+    ldi r25, HIGH(palabra_led<<1)
+    rjmp scroll_nueva_posicion
+scroll_salir:
+    rcall apagar_matriz
+    ret
+;___________________________________________________________________
+apagar_matriz:
 
-  ; S
-  ldi ZL,LOW(letra_S<<1)
-  ldi ZH,HIGH(letra_S<<1)
-  rcall cargar_letra_scroll
+    push r16
 
-  ; Espacio entre palabras
-  ldi ZL,LOW(letra_espacio<<1)
-  ldi ZH,HIGH(letra_espacio<<1)
-  rcall cargar_letra_scroll
+    ; PD2-PD7
+    in r16, PORTD
+    andi r16, 0b00000011
+    ori r16, 0b11111100
+    out PORTD, r16
 
-  ; L
-  ldi ZL,LOW(letra_L<<1)
-  ldi ZH,HIGH(letra_L<<1)
-  rcall cargar_letra_scroll
+    ; PB0-PB1
+    ; PB2-PB5
+    in r16, PORTB
+    andi r16, 0b11000000
+    ori r16, 0b00000011
+    out PORTB, r16
 
-  ; O
-  ldi ZL,LOW(letra_O<<1)
-  ldi ZH,HIGH(letra_O<<1)
-  rcall cargar_letra_scroll
-
-  ; C
-  ldi ZL,LOW(letra_C<<1)
-  ldi ZH,HIGH(letra_C<<1)
-  rcall cargar_letra_scroll
-
-  ; O
-  ldi ZL,LOW(letra_O<<1)
-  ldi ZH,HIGH(letra_O<<1)
-  rcall cargar_letra_scroll
-
-  ; S
-  ldi ZL,LOW(letra_S<<1)
-  ldi ZH,HIGH(letra_S<<1)
-  rcall cargar_letra_scroll
-
-  ; Exclamacion
-  ldi ZL,LOW(letra_exclamacion<<1)
-  ldi ZH,HIGH(letra_exclamacion<<1)
-  rcall cargar_letra_scroll
-
-  ret
+    ; PC0-PC3
+    in r16, PORTC
+    andi r16, 0b11110000
+    out PORTC, r16
+    pop r16
+    ret
 ;______________________________________________________________________
-cargar_letra_scroll:
-
-  ldi YL,LOW(buffer)
-  ldi YH,HIGH(buffer)
-
-  ldi r18,8
-
-cargar_letra_loop:
-
-  lpm r16,Z+
-  st Y+,r16
-
-  dec r18
-  brne cargar_letra_loop
-
-  ; Desplazar la letra ocho veces
-  ldi r23,8
-
-desplazar_letra_loop:
-
-  rcall mostrar_buffer
-  rcall desplazar
-
-  dec r23
-  brne desplazar_letra_loop
-
-  ret
-;______________________________________________________________________
-; MOSTRAR LETRA
-; Z = dirección de la letra
-; Carga los 8 bytes de la letra en BUFFER
-; y luego los muestra.
-;______________________________________________________________________
-
-mostrar_letra:
-
-  ldi YL,LOW(buffer)
-  ldi YH,HIGH(buffer)
-  ldi r18,8
-
-cargar_letra:
-
-  lpm r16,Z+
-  st Y+,r16
-  dec r18
-  brne cargar_letra
-
-  ; Mostrar y desplazar
-  ldi r23,8
-
-movimiento_letra:
-  rcall mostrar_buffer
-  rcall desplazar
-  dec r23
-  brne movimiento_letra
-
-  ret
-;______________________________________________________________________
-
-mostrar_buffer:
-
-  ldi YL,LOW(buffer)
-  ldi YH,HIGH(buffer)
-  ldi r18,0
-
-mostrar_buffer_fila:
-
-  ld r16,Y+
-  mov r17,r18
-  rcall mostrar_fila_texto
-  inc r18
-  cpi r18,8
-  brne mostrar_buffer_fila
-  ret
-;______________________________________________________________________
-mostrar_fila_texto:
-
-    mov r21,r16
-
-    ldi r19,0b11111100
-    out PORTD,r19
-
-    ldi r19,0b00001111
-    out PORTB,r19
-
-    clr r19
-    out PORTC,r19
-
-    mov r19,r21
-    andi r19,0b11000000
-    lsr r19
-    lsr r19
-    ori r19,0b00001111
-    out PORTB,r19
-
-    mov r19,r21
-    andi r19,0b00111111
-    out PORTC,r19
-
-    cpi r17,0
-    brne revisar_f2_texto
-    rjmp f1_texto
-
-revisar_f2_texto:
-    cpi r17,1
-    brne revisar_f3_texto
-    rjmp f2_texto
-
-revisar_f3_texto:
-    cpi r17,2
-    brne revisar_f4_texto
-    rjmp f3_texto
-
-revisar_f4_texto:
-    cpi r17,3
-    brne revisar_f5_texto
-    rjmp f4_texto
-
-revisar_f5_texto:
-    cpi r17,4
-    brne revisar_f6_texto
-    rjmp f5_texto
-
-revisar_f6_texto:
-    cpi r17,5
-    brne revisar_f7_texto
-    rjmp f6_texto
-
-revisar_f7_texto:
-    cpi r17,6
-    brne usar_f8_texto
-    rjmp f7_texto
-
-usar_f8_texto:
-    rjmp f8_texto
-
-f1_texto:
-    cbi PORTD,PD3
-    rjmp mantener_texto
-
-f2_texto:
-    cbi PORTD,PD5
-    rjmp mantener_texto
-
-f3_texto:
-    cbi PORTD,PD6
-    rjmp mantener_texto
-
-f4_texto:
-    cbi PORTD,PD7
-    rjmp mantener_texto
-
-f5_texto:
-    cbi PORTB,PB0
-    rjmp mantener_texto
-
-f6_texto:
-    cbi PORTB,PB1
-    rjmp mantener_texto
-
-f7_texto:
-    cbi PORTB,PB2
-    rjmp mantener_texto
-
-f8_texto:
-    cbi PORTB,PB3
-    rjmp mantener_texto
-;______________________________________________________________________
-desplazar:
-
-  ldi YL,LOW(buffer)
-  ldi YH,HIGH(buffer)
-  ldi r18,8
-
-desplazar_fila:
-  ld r16,Y
-  lsl r16
-  st Y,r16
-  adiw YL,1
-  dec r18
-  brne desplazar_fila
-  ret
-;______________________________________________________________________
-; MOSTRAR UNA FILA
-;
-; r16 = dibujo de la fila
-; r17 = numero de fila
-;______________________________________________________________________
-
-mostrar_fila:
-
-    ; guardar dibujo
-    mov r21, r16
-
-    ; apagar F1-F4
-    ; mantener pull-up D2 y D4
-
-    ldi r19, 0b11111100
-    out PORTD, r19
-
-
-    ; apagar F5-F8
-    ; apagar C1 y C2
-
-    ldi r19, 0b00001111
-    out PORTB, r19
-
-
-    ; apagar C3-C8
-
-    clr r19
-    out PORTC, r19
-
-
-    ; ----------------------------------------
-    ; C1 y C2
-    ;
-    ; bit 7 -> C1
-    ; bit 6 -> C2
-    ; ----------------------------------------
-
-    mov r19, r21
-    andi r19, 0b11000000
-
-    lsr r19
-    lsr r19
-
-    ori r19, 0b00001111
-
-    out PORTB, r19
-
-
-    ; ----------------------------------------
-    ; C3 hasta C8
-    ; ----------------------------------------
-
-    mov r19, r21
-    andi r19, 0b00111111
-
-    out PORTC, r19
-
-
-    ; elegir fila
-
-    cpi r17, 0
-    brne revisar_f2
-    rjmp f1
-
-
-revisar_f2:
-
-    cpi r17, 1
-    brne revisar_f3
-    rjmp f2
-
-
-revisar_f3:
-
-    cpi r17, 2
-    brne revisar_f4
-    rjmp f3
-
-
-revisar_f4:
-
-    cpi r17, 3
-    brne revisar_f5
-    rjmp f4
-
-
-revisar_f5:
-
-    cpi r17, 4
-    brne revisar_f6
-    rjmp f5
-
-
-revisar_f6:
-
-    cpi r17, 5
-    brne revisar_f7
-    rjmp f6
-
-
-revisar_f7:
-
-    cpi r17, 6
-    brne usar_f8
-    rjmp f7
-
-
-usar_f8:
-
-    rjmp f8
-
-; ----------------------------------------------------------
-; FILAS
-; ----------------------------------------------------------
-
-f1:
-
-    cbi PORTD, PD3
-    rjmp mantener
-
-
-f2:
-
-    cbi PORTD, PD5
-    rjmp mantener
-
-
-f3:
-
-    cbi PORTD, PD6
-    rjmp mantener
-
-
-f4:
-
-    cbi PORTD, PD7
-    rjmp mantener
-
-
-f5:
-
-    cbi PORTB, PB0
-    rjmp mantener
-
-
-f6:
-
-    cbi PORTB, PB1
-    rjmp mantener
-
-
-f7:
-
-    cbi PORTB, PB2
-    rjmp mantener
-
-
-f8:
-
-    cbi PORTB, PB3
-
-; -----------------------------------------------------------
-; PAUSA PARA REFRESCAR MATRIZ
-; -----------------------------------------------------------
-mantener_texto:
-
-    mov r20,r22
-
-espera_texto:
-
-    dec r20
-    brne espera_texto
-
+activar_columna:
+
+    cpi r19, 0
+    breq activar_c1
+    cpi r19, 1
+    breq activar_c2
+    cpi r19, 2
+    breq activar_c3
+    cpi r19, 3
+    breq activar_c4
+    cpi r19, 4
+    breq activar_c5
+    cpi r19, 5
+    breq activar_c6
+    cpi r19, 6
+    breq activar_c7
+    cpi r19, 7
+    breq activar_c8
     ret
 
-mantener:
+activar_c1:
+    sbi PORTB, PB2
+    ret
+activar_c2:
+    sbi PORTB, PB3
+    ret
+activar_c3:
+    sbi PORTB, PB4
+    ret
+activar_c4:
+    sbi PORTB, PB5
+    ret
+activar_c5:
+    sbi PORTC, PC0
+    ret
+activar_c6:
+    sbi PORTC, PC1
+    ret
+activar_c7:
+    sbi PORTC, PC2
+    ret
+activar_c8:
+    sbi PORTC, PC3
+    ret
+;______________________________________________________________________
+poner_filas:
 
-    ldi r20, 60
+    push r17
+    push r18
+    mov r17, r16
+    com r17
+    andi r17, 0b00111111
+    lsl r17
+    lsl r17
+    in r18, PORTD
+    andi r18, 0b00000011
+    or r18, r17
+    out PORTD, r18
+    mov r17, r16
+    com r17
+    ; Llevar bits 6 y 7 a posiciones 0 y 1
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+    andi r17, 0b00000011
+    ; Preservar PB2-PB7
+    in r18, PORTB
+    andi r18, 0b11111100
+    or r18, r17
+    out PORTB, r18
+    pop r18
+    pop r17
+    ret
+;______________________________________________________________________
+mostrar_frame:
 
-espera:
+    push r18
+    push r19
+    push r26
+    push r27
+    ; Apuntar al buffer
+    ldi XL, LOW(buffer)
+    ldi XH, HIGH(buffer)
+    ; columna actual = 0
+    clr r18
+mostrar_frame_loop:
 
-    dec r20
-    brne espera
+    rcall apagar_matriz
+    ; Leer dibujo de la columna
+    ld r16, X+
+    rcall poner_filas
+    mov r19, r18
+    rcall activar_columna
+    ; Mantener aproximadamente 1 ms
+    rcall delay_1ms
+    ; Siguiente columna
+    inc r18
+    cpi r18, 8
+    brlo mostrar_frame_loop
+    rcall apagar_matriz
+    pop r27
+    pop r26
+    pop r19
+    pop r18
+    ret
+;______________________________________________________________________
+cargar_figura:
+    ldi XL, LOW(buffer)
+    ldi XH, HIGH(buffer)
+    ldi r18, 8
+cargar_figura_loop:
+    lpm r16, Z+
+    st X+, r16
+    dec r18
+    brne cargar_figura_loop
+    ret
+;______________________________________________________________________
+mostrar_figura:
+
+figura_loop:
+    rcall mostrar_frame
+    ; Revisar UART
+    rcall uart_rx_no_bloqueante
+    brcc figura_loop  
+    cpi r16, 'M'
+    breq figura_salir
+    cpi r16, 'm'
+    breq figura_salir
+    rjmp figura_loop
+figura_salir:
+    rcall apagar_matriz
+    ret
+;______________________________________________________________________
+delay_1ms:
+    ldi r30, 21
+
+delay_1:
+    ldi r31, 250
+
+delay_2:
+    dec r31
+    brne delay_2
+
+    dec r30
+    brne delay_1
 
     ret
+;______________________________________________________________________
