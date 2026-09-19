@@ -3,9 +3,15 @@
 ; Created: 8/9/2026 14:15:28
 ; Author : User
 .include "m328pdef.inc"
+.equ VEL_INICIAL = 18
+.equ VEL_MIN     = 4
+.equ VEL_MAX     = 60
 .dseg  
+.org 0x0100
 buffer:   
 .byte 8  
+velocidad:
+.byte 1
 .cseg 
 .ORG 0x0000
 .equ F_CPU = 16000000
@@ -22,7 +28,7 @@ Inicio:
 ;______________________________________________________________________
   ;como todo es salida para la matriz menos tx y rx todo salida y despues defino
   ; PORTD: PD0 RX, PD1 TX, PD2-PD7 matriz
-  ldi r16,0b11111110
+  ldi r16,0b1111100
   out DDRD,r16
 
   ; PORTB: PB0-PB5 matriz
@@ -191,14 +197,15 @@ menu:
 
   .db 0x0D,0x0A
   .db "----------- MENU -----------",0x0D,0x0A
-  .db "1  Sonrisa",0x0D,0x0A,0
-  .db "2  Guino",0x0D,0x0A,0
-  .db "3  Corazon",0x0D,0x0A,0
-  .db "P  Palabra",0x0D,0x0A,0
-  .db "+  rapido",0x0D,0x0A,0
-  .db "-  lento",0x0D,0x0A,0
+  .db "1  Sonrisa",0x0D,0x0A
+  .db "2  Guino",0x0D,0x0A
+  .db "3  Corazon",0x0D,0x0A
+  .db "P  Palabra",0x0D,0x0A
+  .db "+  rapido",0x0D,0x0A
+  .db "-  lento",0x0D,0x0A
   .db "----------------------------",0x0D,0x0A
-  .db "Seleccione una opcion: ",0x0D,0x0A,0 ;algunos se arreglan con 0 y otros no??
+  .db "Seleccione una opcion: ",0x0D,0x0A ;algunos se arreglan con 0 y otros no??
+  .db 0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_sonrisa:
 
@@ -221,13 +228,13 @@ mensaje_corazon:
 mensaje_palabra:
 
   .db 0x0D,0x0A
-  .db "Mostrando: COCOS LOCOS!",0x0D,0x0A
+  .db "Mostrando: COCOS LOCOS!",0x0D,0x0A,0
   .db 0x0D,0x0A
 ;______________________________________________________________________
 mensaje_rapido:
 
   .db 0x0D,0x0A
-  .db "Velocidad aumentada",0x0D,0x0A
+  .db "Velocidad aumentada",0x0D,0x0A,0
   .db 0x0D,0x0A
 ;______________________________________________________________________
 mensaje_lento:
@@ -268,7 +275,7 @@ sonrisa:
   ldi r16,0b00111100
   ldi r17,7
   rcall mostrar_fila
-  ret
+  rjmp sonrisa
 ;______________________________________________________________________
 guino:
   ldi r16,0b00111100
@@ -337,7 +344,9 @@ corazon:
   ldi r16,0b00000000
   ldi r17,7
   rcall mostrar_fila
-  ret
+  cpi r16,'p'
+  breq menu
+  rjmp corazon
 ;______________________________________________________________________
 letra_C:
     .db 0x3E,0x41,0x40,0x40,0x41,0x3E,0x00,0x00
