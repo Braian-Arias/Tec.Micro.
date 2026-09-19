@@ -28,7 +28,7 @@ Inicio:
 ;______________________________________________________________________
   ;como todo es salida para la matriz menos tx y rx todo salida y despues defino
   ; PORTD: PD0 RX, PD1 TX, PD2-PD7 matriz
-  ldi r16,0b1111100
+  ldi r16,0b11111100
   out DDRD,r16
 
   ; PORTB: PB0-PB5 matriz
@@ -74,6 +74,8 @@ Comparar:
   breq cmd3
   cpi r16,'p'
   breq cmd_palabra
+  cpi r16,'P'
+  breq cmd_palabra
   cpi r16,'+'
   breq cmd_rapido
   cpi r16,'-'
@@ -110,7 +112,7 @@ cmd_palabra:
   rcall palabra
   rjmp esperar_comando
 
-cmd_rapido:
+mas_rapido:
     lds r16, velocidad
     cpi r16, VEL_MIN ; Menor valor = mas rapido
     breq rapido_fin
@@ -124,15 +126,16 @@ cmd_rapido:
 guardar_rapido:
     sts velocidad, r16
 rapido_fin:
+    ret
+cmd_rapido:
+    rcall mas_rapido
 
-  ldi ZL,LOW(mensaje_rapido<<1)
-  ldi ZH,HIGH(mensaje_rapido<<1)
-  rcall uart_print
+    ldi ZL,LOW(mensaje_rapido<<1)
+    ldi ZH,HIGH(mensaje_rapido<<1)
+    rcall uart_print
 
-  ret
-
-
-cmd_lento:
+    rjmp esperar_comando
+mas_lento:
     lds r16, velocidad
     cpi r16, VEL_MAX ; Mayor valor = mas lento
     brsh lento_fin
@@ -144,11 +147,13 @@ cmd_lento:
 guardar_lento:
     sts velocidad, r16
 lento_fin:
-
+    ret
+cmd_lento:
+  rcall mas_lento
   ldi ZL,LOW(mensaje_lento<<1)
   ldi ZH,HIGH(mensaje_lento<<1)
   rcall uart_print
-  ret
+  rjmp esperar_comando
 ;______________________________________________________________________
 mostrar_menu:
 
@@ -209,7 +214,6 @@ uart_print:
 uart_print_end:
   ret
 ;______________________________________________________________________
-
 mensaje_inicio:
 
   .db 0x0D,0x0A
@@ -217,30 +221,30 @@ mensaje_inicio:
   .db "---------MATRIZ DE LEDS---------",0x0D,0x0A
   .db "================================",0x0D,0x0A
   .db "Bienvenido!",0x0D,0x0A,0
-  .db 0x0D,0x0A
 ;______________________________________________________________________
 menu:
 
   .db 0x0D,0x0A
-  .db "----------- MENU -----------",0x0D,0x0A
-  .db "1  Sonrisa",0x0D,0x0A
-  .db "2  Guino",0x0D,0x0A
-  .db "3  Corazon",0x0D,0x0A
-  .db "P  Palabra",0x0D,0x0A
-  .db "+  rapido",0x0D,0x0A
-  .db "-  lento",0x0D,0x0A
-  .db "----------------------------",0x0D,0x0A
-  .db "Seleccione una opcion: ",0x0D,0x0A ;algunos se arreglan con 0 y otros no??
-  .db 0x0D,0x0A,0
+  .db "-----------MENU-----------",0x0D,0x0A
+  .db "1  Sonrisa                ",0x0D,0x0A
+  .db "2  Guino                  ",0x0D,0x0A
+  .db "3  Corazon                ",0x0D,0x0A
+  .db "p  Palabra                ",0x0D,0x0A
+  .db "+  rapido                 ",0x0D,0x0A
+  .db "-  lento                  ",0x0D,0x0A
+  .db "m o M veulve menu         ",0x0D,0x0A
+  .db "--------------------------",0x0D,0x0A
+  .db "Seleccione una opcion:    ",0x0D,0x0A ;algunos se arreglan con 0 y otros no??
+  .db 0x0D,0x0A,0,0; deveria ser solo el final
 ;______________________________________________________________________
 mensaje_sonrisa:
-  .db "Seleccion: SONRISA",0x0D,0x0A,0
+  .db "Seleccion: SONRISA",0x0D,0x0A,0,0
 ;______________________________________________________________________
 mensaje_guino:
-  .db "Seleccion: GUINO",0x0D,0x0A,0
+  .db "Seleccion: GUINO",0x0D,0x0A,0,0
 ;______________________________________________________________________
 mensaje_corazon:
-  .db "Seleccion: CORAZON",0x0D,0x0A,0
+  .db "Seleccion: CORAZON",0x0D,0x0A,0,0
 ;______________________________________________________________________
 mensaje_palabra:
   .db "Mostrando: COCOS LOCOS!",0x0D,0x0A,0
@@ -249,7 +253,7 @@ mensaje_rapido:
   .db "Velocidad aumentada",0x0D,0x0A,0
 ;______________________________________________________________________
 mensaje_lento:
-  .db "Velocidad reducida",0x0D,0x0A,0
+  .db "Velocidad reducida",0x0D,0x0A,0,0
 ;______________________________________________________________________
 sonrisa:
     ; Cargar sonrisa
@@ -375,11 +379,11 @@ scroll_sin_comando:
     adiw r24, 1
     rjmp scroll_nueva_posicion
 scroll_rapido:
-    rcall cmd_rapido
+    rcall mas_rapido
     lds r22, velocidad
     rjmp scroll_refresco
 scroll_lento:
-    rcall cmd_lento
+    rcall mas_lento
     lds r22, velocidad
     rjmp scroll_refresco
 scroll_reiniciar:
@@ -394,7 +398,6 @@ scroll_salir:
 apagar_matriz:
 
     push r16
-
     ; PD2-PD7
     in r16, PORTD
     andi r16, 0b00000011
@@ -552,17 +555,17 @@ figura_salir:
     ret
 ;______________________________________________________________________
 delay_1ms:
-    ldi r30, 21
-
+    push r20
+    push r21
+    ldi r20, 21
 delay_1:
-    ldi r31, 250
-
+    ldi r21, 250
 delay_2:
-    dec r31
+    dec r21
     brne delay_2
-
-    dec r30
+    dec r20
     brne delay_1
-
+    pop r21
+    pop r20
     ret
 ;______________________________________________________________________
