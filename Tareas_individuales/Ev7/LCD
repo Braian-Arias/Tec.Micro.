@@ -1,0 +1,106 @@
+;LCD
+;1) Implementar la inicialización del LCD en modo de 8 bits en Assembler 
+;2) Implementar la inicialización del LCD en modo de 4 bits en C
+;AssemblerApplication9.asm
+; Created: 21/9/2026 3:50:48
+; Author : User
+; Replace with your application code
+.include "m328pdef.inc"
+.org 0x0000
+    rjmp inicio
+;_______________________________________
+inicio:
+    ; PORTD = todo salida D0-7
+    ldi r16, 0xFF
+    out DDRD, r16
+
+    ; PB0 y PB1 = salida
+    ldi r16, (1<<PB0)|(1<<PB1)
+    out DDRB, r16
+	
+
+;inicializacion
+    cbi PORTB, PB0 ;RS=0
+    ldi r16, 0b00110000 ;4-5
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;seteo
+    ldi r16, 0b00111000 ;4-5-3
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;prende apaga pantalla
+    ldi r16, 0b00001000 ;3
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;limpiar pantalla
+    ldi r16, 0b00000001 ;0
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;escribir izquierda derecha
+    ldi r16, 0b00000110 ;2-1
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;curzor habilitado
+    ldi r16, 0b00001111 ;3-2-1-0
+    out PORTD, r16
+	rcall enviar
+	rcall enviar
+;para escribir
+    sbi PORTB, PB0 ;RS=1
+    ldi r16, 0b01001101 ;M
+    out PORTD, r16
+	rcall enviar
+
+    ldi r16, 0b01101001 ;i
+    out PORTD, r16
+	rcall enviar
+
+    ldi r16, 0b01100011 ;c
+    out PORTD, r16
+	rcall enviar
+
+	ldi r16, 0b01110010 ;r
+    out PORTD, r16
+	rcall enviar
+
+	ldi r16, 0b01101111 ;o
+    out PORTD, r16
+	rcall enviar
+
+	ldi r16, 0b01110011 ;s
+    out PORTD, r16
+	rcall enviar
+loop:
+	 rjmp loop
+
+    rjmp inicio
+;_______________________________________
+enviar:
+	rcall delay
+    sbi PORTB, PB1 ;E=1
+	nop
+    nop
+    cbi PORTB, PB1 ;E=0
+    rcall Delay
+    ret
+;_______________________________________
+;Delay 1 segundo
+Delay:
+    ldi r19, 20
+D1:
+    ldi r20, 255
+D2:
+    ldi r21, 255
+D3:
+    dec r21
+    brne D3
+    dec r20
+    brne D2
+    dec r19
+    brne D1
+    ret
