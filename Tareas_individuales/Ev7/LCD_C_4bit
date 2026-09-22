@@ -1,0 +1,67 @@
+/*  LCD modo 4bit 
+ * GccApplication2.c
+ * RS = PB0, E = PB1, D4-D7 = PD4-PD7
+ * Created: 21/9/2026 15:15:09
+ * Author : User
+ */ 
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+
+void enviar(void) {
+	_delay_ms(10);
+	PORTB |= (1 << PB1);     //  E=1
+	_delay_ms(10);
+	PORTB &= ~(1 << PB1);    //  E=0
+	_delay_ms(10);
+}
+
+void lcd_comando(unsigned char cmd) {
+	unsigned char alto = cmd & 0xF0;
+	unsigned char bajo = (cmd & 0x0F) << 4; //<<4 desplaza 4 pocisiones para no leer 0000 1111 sino solo los ultimos 4
+
+	PORTD = alto;  enviar();              // ldi/out + rcall enviar
+	PORTD = bajo;  enviar();              // ldi/out + rcall enviar
+}
+
+void Inicio(void) {
+	DDRD = 0xFF;    // PORTD salida D0-7
+	DDRB = (1 << PB0) | (1 << PB1); // PB0, PB1 salida
+
+	PORTB &= ~(1 << PB0);      // &= ~ cbi PORTB, PB0 (RS=0)
+
+	lcd_comando(0b00110000);  // 4-5
+	_delay_ms(10);
+	lcd_comando(0b00111000);  // 4-5-3
+	_delay_ms(10);
+	lcd_comando(0b00001000);  // encender pantalla
+	_delay_ms(10);
+	lcd_comando(0b00000001);  // limpiar
+	_delay_ms(10);
+	lcd_comando(0b00000110);  // entrada izq-der
+	_delay_ms(10);
+	lcd_comando(0b00001111);  // cursor habilitado
+	_delay_ms(10);
+
+	PORTB |= (1 << PB0);     // | sbi PORTB, PB0 (RS=1)
+}
+
+int main(void) {
+	
+	Inicio();
+
+	lcd_comando(0b01001101); //M
+	_delay_ms(10);
+	lcd_comando(0b01101001); //i
+	_delay_ms(10);
+	lcd_comando(0b01100011); //c
+	_delay_ms(10);
+	lcd_comando(0b01110010); //r
+	_delay_ms(10);
+	lcd_comando(0b01101111); //0
+	_delay_ms(10);
+	lcd_comando(0b01110011); //s
+	_delay_ms(10);
+
+	while (1) { }   // loop: rjmp loop
+}
