@@ -1,186 +1,843 @@
-.include "m328Pdef.inc"
+.include "m328Pdef.inc"          ; Incluye los nombres de registros y pines del ATmega328P
 
-.equ CERRADA  = 0
-.equ ABRIENDO = 1
-.equ ABIERTA  = 2
-.equ CERRANDO = 3
 
-.cseg
-.org 0x0000
-    rjmp inicio
+; =========================================================
+; ESTADOS DE LA PUERTA
+; =========================================================
+
+.equ CERRADA   = 0              ; 0 significa que la puerta esta cerrada
+.equ ABRIENDO  = 1              ; 1 significa que la puerta esta abriendo
+.equ ABIERTA   = 2              ; 2 significa que la puerta esta abierta
+.equ CERRANDO  = 3              ; 3 significa que la puerta esta cerrando
+.equ DETENIDA  = 4              ; 4 significa que se detuvo por seguridad
+
+
+; =========================================================
+; VARIABLES
+; =========================================================
+
+.dseg                           ; Empieza la zona de variables en memoria RAM
+
+estado:
+    .byte 1                     ; Reserva 1 byte para guardar el estado de la puerta
+
+obstaculo:
+    .byte 1                     ; Reserva 1 byte para indicar si hubo obstaculo
+
+
+; =========================================================
+; CODIGO
+; =========================================================
+
+.cseg                           ; Empieza la zona del programa
+
+
+; =========================================================
+; RESET
+; =========================================================
+
+.org 0x0000                     ; Direccion donde comienza el ATmega al encender
+
+    rjmp inicio                 ; Salta al inicio del programa
+
+
+; =========================================================
+; INTERRUPCION DEL OBSTACULO
+; =========================================================
+
+.org 0x000A                     ; Vector del grupo de interrupciones PCINT del PORTD
+
+    rjmp int_obstaculo          ; Cuando cambia D7 salta a int_obstaculo
+
+
+; =========================================================
+; INTERRUPCION TIMER1
+; =========================================================
+
+.org 0x0016                     ; Vector de interrupcion Timer1 Compare A
+
+    rjmp int_timer              ; Cuando ocurre la interrupcion va a int_timer
+
+
+.org 0x0034                     ; A partir de aca empieza el resto del programa
+
+
+; =========================================================
+; INICIO
+; =========================================================
 
 inicio:
 
-    ; PB0 y PB1 salidas para el motor
-    ldi r16, 0b00000011
-    out DDRB, r16
 
-    ; motor apagado al inicio
-    clr r16
-    out PORTB, r16
+; =========================================================
+; CONFIGURAR PILA
+; =========================================================
 
-    ; PC0 a PC3 entradas
-    clr r16
-    out DDRC, r16
+    ldi r16, HIGH(RAMEND)       ; Carga en r16 la parte alta del final de la RAM
 
-    ; activar pull-up
-    ldi r16, 0b00001111
-    out PORTC, r16
+    out SPH, r16                ; La guarda en la parte alta del puntero de pila
 
-    ; PD4, PD5 y PD6 salidas para los leds
-    ldi r16, 0b01110000
-    out DDRD, r16
 
-    ; al iniciar solo prende el led de detenido
-    ldi r16, 0b01000000
-    out PORTD, r16
+    ldi r16, LOW(RAMEND)        ; Carga la parte baja del final de RAM
 
-    ; la puerta arranca cerrada
-    ldi r18, CERRADA
+    out SPL, r16                ; La guarda en la parte baja del puntero de pila
+
+
+; La pila se usa para llamadas a subrutinas e interrupciones.
+
+
+; =========================================================
+; CONFIGURAR PORTB
+;
+; PB0 = D8  = motor abrir
+; PB1 = D9  = motor cerrar
+; PB2 = D10 = buzzer
+; =========================================================
+
+    ldi r16, 0b00000111         ; Coloca PB0, PB1 y PB2 en 1
+
+    out DDRB, r16               ; Configura PB0, PB1 y PB2 como salidas
+
+
+    clr r16                     ; Pone r16 en 0
+
+    out PORTB, r16              ; Motor y buzzer empiezan apagados
+
+
+; =========================================================
+; CONFIGURAR PORTC
+;
+; PC0 = A0 = boton abrir
+; PC1 = A1 = boton cerrar
+; PC2 = A2 = final puerta abierta
+; PC3 = A3 = final puerta cerrada
+; =========================================================
+
+    clr r16                     ; r16 = 0
+
+    out DDRC, r16               ; Configura PORTC como entrada
+
+
+    ldi r16, 0b00001111         ; Pone PC0, PC1, PC2 y PC3 en 1
+
+    out PORTC, r16              ; Activa las resistencias pull-up internas
+
+
+; Al usar pull-up:
+;
+; sin presionar = 1
+; presionado    = 0
+
+
+; =========================================================
+; CONFIGURAR PORTD
+;
+; PD4 = D4 = LED abriendo
+; PD5 = D5 = LED cerrando
+; PD6 = D6 = LED rojo
+; PD7 = D7 = obstaculo
+; =========================================================
+
+    ldi r16, 0b01110000         ; PD4, PD5 y PD6 quedan en 1
+
+    out DDRD, r16               ; D4, D5 y D6 son salidas
+                                ; D7 queda como entrada
+
+
+    ldi r16, 0b10000000         ; Pone solamente PD7 en 1
+
+    out PORTD, r16              ; Activa pull-up en D7
+                                ; Los LEDs empiezan apagados
+
+
+; =========================================================
+; INICIAR USART
+; =========================================================
+
+    rcall iniciar_usart         ; Va a configurar la comunicacion serie
+
+
+; =========================================================
+; CONFIGURAR TIMER1 PARA EL BUZZER
+; =========================================================
+
+    clr r16                     ; r16 = 0
+
+    sts TCCR1A, r16             ; Limpia el registro TCCR1A
+
+
+    ldi r16, (1<<WGM12) | (1<<CS11)
+                                ; WGM12 pone Timer1 en modo CTC
+                                ; CS11 usa prescaler 8
+
+    sts TCCR1B, r16             ; Guarda esa configuracion en Timer1
+
+
+    ldi r16, HIGH(999)          ; Toma la parte alta del numero 999
+
+    sts OCR1AH, r16             ; La guarda en OCR1A High
+
+
+    ldi r16, LOW(999)           ; Toma la parte baja del numero 999
+
+    sts OCR1AL, r16             ; La guarda en OCR1A Low
+
+
+    clr r16                     ; r16 = 0
+
+    sts TIMSK1, r16             ; Al principio la interrupcion del timer esta apagada
+
+
+; =========================================================
+; CONFIGURAR INTERRUPCION DEL OBSTACULO
+;
+; D7 = PD7 = PCINT23
+; =========================================================
+
+    ldi r16, 0b00000100         ; Activa el bit PCIE2
+
+    sts PCICR, r16              ; Habilita el grupo PCINT16 a PCINT23
+
+
+    ldi r16, 0b10000000         ; Activa solamente el bit de PCINT23
+
+    sts PCMSK2, r16             ; D7 queda habilitado para generar interrupcion
+
+
+    ldi r16, 0b00000100         ; Selecciona la bandera PCIF2
+
+    out PCIFR, r16              ; Limpia una posible interrupcion anterior
+
+
+; =========================================================
+; ESTADO INICIAL
+; =========================================================
+
+    ldi r16, CERRADA            ; Carga el valor 0 en r16
+
+    sts estado, r16             ; Guarda que la puerta comienza cerrada
+
+
+    clr r16                     ; r16 = 0
+
+    sts obstaculo, r16          ; Al iniciar no hay obstaculo
+
+
+; =========================================================
+; MENSAJE INICIAL
+; =========================================================
+
+    ldi ZH, HIGH(msg_cerrada*2) ; Carga la parte alta de la direccion del mensaje
+
+    ldi ZL, LOW(msg_cerrada*2)  ; Carga la parte baja de la direccion del mensaje
+
+    rcall enviar_texto          ; Envia "Puerta cerrada."
+
+
+; =========================================================
+; HABILITAR INTERRUPCIONES
+; =========================================================
+
+    sei                         ; Habilita las interrupciones del microcontrolador
+
+
+; =========================================================
+; PROGRAMA PRINCIPAL
+; =========================================================
 
 principal:
 
-    ; revisar el estado
-    cpi r18, CERRADA
-    breq puerta_cerrada
+    lds r16, obstaculo          ; Lee la variable obstaculo
 
-    cpi r18, ABRIENDO
-    breq puerta_abriendo
 
-    cpi r18, ABIERTA
-    breq puerta_abierta
+    tst r16                     ; Comprueba si vale 0
 
-    cpi r18, CERRANDO
-    breq puerta_cerrando
+    breq mirar_estado           ; Si vale 0, no hubo obstaculo y sigue normal
 
-    rjmp principal
 
-; --------------------------------------------------
+; Si llega aca significa que obstaculo vale 1.
+
+    clr r16                     ; Pone r16 en 0
+
+    sts obstaculo, r16          ; Vuelve a borrar la bandera de obstaculo
+
+
+; Mostrar "Obstaculo detectado."
+
+    ldi ZH, HIGH(msg_obstaculo*2)
+                                ; Carga direccion del mensaje
+
+    ldi ZL, LOW(msg_obstaculo*2)
+
+    rcall enviar_texto          ; Manda el mensaje por USART
+
+
+; Mostrar "Movimiento detenido por seguridad."
+
+    ldi ZH, HIGH(msg_seguridad*2)
+
+    ldi ZL, LOW(msg_seguridad*2)
+
+    rcall enviar_texto
+
+
+; =========================================================
+; MIRAR ESTADO DE LA PUERTA
+; =========================================================
+
+mirar_estado:
+
+    lds r16, estado             ; Carga el estado actual de la puerta
+
+
+    cpi r16, CERRADA            ; Compara estado con CERRADA
+
+    breq puerta_cerrada         ; Si son iguales va a puerta_cerrada
+
+
+    cpi r16, ABRIENDO           ; Compara con ABRIENDO
+
+    breq puerta_abriendo        ; Si esta abriendo va a esa parte
+
+
+    cpi r16, ABIERTA            ; Compara con ABIERTA
+
+    breq puerta_abierta         ; Si esta abierta va a esa parte
+
+
+    cpi r16, CERRANDO           ; Compara con CERRANDO
+
+    breq puerta_cerrando        ; Si esta cerrando va a esa parte
+
+
+    cpi r16, DETENIDA           ; Compara con DETENIDA
+
+    breq puerta_detenida        ; Si se detuvo por seguridad va ahi
+
+
+    rjmp principal              ; Si no coincide vuelve al comienzo
+
+
+; =========================================================
 ; PUERTA CERRADA
-; --------------------------------------------------
+; =========================================================
 
 puerta_cerrada:
 
-    ; PC0 = boton abrir
-    sbis PINC, PC0
-    rjmp abrir
+    sbis PINC, PC0              ; Mira el boton A0
+                                ; Si PC0 = 1 salta la siguiente linea
 
-    rjmp principal
+    rjmp abrir                  ; Si PC0 = 0 el boton fue presionado
 
-; --------------------------------------------------
+
+    rjmp principal              ; Si no se pulsa, sigue esperando
+
+
+; =========================================================
 ; ABRIR
-; --------------------------------------------------
+; =========================================================
 
 abrir:
 
-    ; motor gira para abrir
-    sbi PORTB, PB0
-    cbi PORTB, PB1
+    ldi r16, ABRIENDO           ; Carga el estado ABRIENDO
 
-    ; led abriendo prendido
-    sbi PORTD, PD4
+    sts estado, r16             ; Guarda que ahora esta abriendo
 
-    ; apagar los otros leds
-    cbi PORTD, PD5
-    cbi PORTD, PD6
 
-    ldi r18, ABRIENDO
+; Motor
 
-    rjmp principal
+    sbi PORTB, PB0              ; D8 = 1
 
-; --------------------------------------------------
-; ABRIENDO
-; --------------------------------------------------
+    cbi PORTB, PB1              ; D9 = 0
+
+; D8=1 y D9=0 hacen girar el motor para abrir.
+
+
+; LEDs
+
+    sbi PORTD, PD4              ; Prende LED de abriendo
+
+    cbi PORTD, PD5              ; Apaga LED de cerrando
+
+    cbi PORTD, PD6              ; Apaga LED rojo
+
+
+; Buzzer
+
+    rcall prender_buzzer        ; Llama a la subrutina del buzzer
+
+
+; USART
+
+    ldi ZH, HIGH(msg_abriendo*2)
+
+    ldi ZL, LOW(msg_abriendo*2)
+
+    rcall enviar_texto          ; Muestra "Puerta abriendo."
+
+
+    rjmp principal              ; Vuelve al programa principal
+
+
+; =========================================================
+; PUERTA ABRIENDO
+; =========================================================
 
 puerta_abriendo:
 
-    ; PC2 = sensor de puerta abierta
-    sbis PINC, PC2
-    rjmp llego_abierta
+    sbis PINC, PC2              ; Mira el final de carrera A2
 
-    rjmp principal
+    rjmp abierta                ; Si A2 = 0 significa que llego arriba
 
-; --------------------------------------------------
-; LLEGO ABIERTA
-; --------------------------------------------------
 
-llego_abierta:
+    rjmp principal              ; Si todavia no llego, sigue esperando
 
-    ; detener motor
-    cbi PORTB, PB0
-    cbi PORTB, PB1
 
-    ; apagar leds de movimiento
-    cbi PORTD, PD4
-    cbi PORTD, PD5
+; =========================================================
+; PUERTA LLEGO ABIERTA
+; =========================================================
 
-    ; prender led detenido
-    sbi PORTD, PD6
+abierta:
 
-    ldi r18, ABIERTA
+    rcall parar_motor           ; Detiene el motor
 
-    rjmp principal
+    rcall apagar_buzzer         ; Apaga el buzzer
 
-; --------------------------------------------------
+
+    cbi PORTD, PD4              ; Apaga LED abriendo
+
+    cbi PORTD, PD5              ; Apaga LED cerrando
+
+    cbi PORTD, PD6              ; Apaga LED rojo
+
+
+    ldi r16, ABIERTA            ; Carga el estado ABIERTA
+
+    sts estado, r16             ; Guarda ese estado
+
+
+    ldi ZH, HIGH(msg_abierta*2)
+
+    ldi ZL, LOW(msg_abierta*2)
+
+    rcall enviar_texto          ; Muestra "Puerta abierta."
+
+
+    rjmp principal              ; Vuelve al ciclo principal
+
+
+; =========================================================
 ; PUERTA ABIERTA
-; --------------------------------------------------
+; =========================================================
 
 puerta_abierta:
 
-    ; PC1 = boton cerrar
-    sbis PINC, PC1
-    rjmp cerrar
+    sbis PINC, PC1              ; Mira el boton A1 de cerrar
 
-    rjmp principal
+    rjmp cerrar                 ; Si A1 = 0 comienza el cierre
 
-; --------------------------------------------------
+
+    rjmp principal              ; Si no se pulsa sigue esperando
+
+
+; =========================================================
 ; CERRAR
-; --------------------------------------------------
+; =========================================================
 
 cerrar:
 
-    ; motor gira al otro lado
-    cbi PORTB, PB0
-    sbi PORTB, PB1
+    ldi r16, CERRANDO           ; Carga estado CERRANDO
 
-    ; led cerrando prendido
-    cbi PORTD, PD4
-    sbi PORTD, PD5
-    cbi PORTD, PD6
+    sts estado, r16             ; Guarda ese estado
 
-    ldi r18, CERRANDO
+
+; Motor
+
+    cbi PORTB, PB0              ; D8 = 0
+
+    sbi PORTB, PB1              ; D9 = 1
+
+; Ahora el motor gira en sentido contrario.
+
+
+; LEDs
+
+    cbi PORTD, PD4              ; Apaga LED abriendo
+
+    sbi PORTD, PD5              ; Prende LED cerrando
+
+    cbi PORTD, PD6              ; Apaga LED rojo
+
+
+; Buzzer
+
+    rcall prender_buzzer        ; Enciende el sonido
+
+
+; USART
+
+    ldi ZH, HIGH(msg_cerrando*2)
+
+    ldi ZL, LOW(msg_cerrando*2)
+
+    rcall enviar_texto          ; Muestra "Puerta cerrando."
+
 
     rjmp principal
 
-; --------------------------------------------------
-; CERRANDO
-; --------------------------------------------------
+
+; =========================================================
+; PUERTA CERRANDO
+; =========================================================
 
 puerta_cerrando:
 
-    ; PC3 = sensor de puerta cerrada
-    sbis PINC, PC3
-    rjmp llego_cerrada
+    sbis PINC, PC3              ; Mira el final de carrera A3
+
+    rjmp cerrada                ; Si A3 = 0 llego al final
+
+
+    rjmp principal              ; Si no, sigue cerrando
+
+
+; =========================================================
+; PUERTA LLEGO CERRADA
+; =========================================================
+
+cerrada:
+
+    rcall parar_motor           ; Detiene motor
+
+    rcall apagar_buzzer         ; Apaga buzzer
+
+
+    cbi PORTD, PD4              ; Apaga LED abriendo
+
+    cbi PORTD, PD5              ; Apaga LED cerrando
+
+    cbi PORTD, PD6              ; Apaga LED rojo
+
+
+    ldi r16, CERRADA            ; Carga estado CERRADA
+
+    sts estado, r16             ; Guarda que quedo cerrada
+
+
+    ldi ZH, HIGH(msg_cerrada*2)
+
+    ldi ZL, LOW(msg_cerrada*2)
+
+    rcall enviar_texto          ; Muestra "Puerta cerrada."
+
 
     rjmp principal
 
-; --------------------------------------------------
-; LLEGO CERRADA
-; --------------------------------------------------
 
-llego_cerrada:
+; =========================================================
+; PUERTA DETENIDA
+; =========================================================
 
-    ; detener motor
-    cbi PORTB, PB0
-    cbi PORTB, PB1
+puerta_detenida:
 
-    ; apagar leds de movimiento
-    cbi PORTD, PD4
-    cbi PORTD, PD5
+    sbis PINC, PC0              ; Mira boton abrir
 
-    ; prender led detenido
-    sbi PORTD, PD6
+    rjmp abrir                  ; Si se pulsa puede volver a abrir
 
-    ldi r18, CERRADA
 
-    rjmp principal
+    sbis PINC, PC1              ; Mira boton cerrar
+
+    rjmp cerrar                 ; Si se pulsa puede volver a cerrar
+
+
+    rjmp principal              ; Si no se pulsa nada sigue detenida
+
+
+; =========================================================
+; PARAR MOTOR
+; =========================================================
+
+parar_motor:
+
+    cbi PORTB, PB0              ; D8 = 0
+
+    cbi PORTB, PB1              ; D9 = 0
+
+; Con las dos entradas en 0 el motor queda detenido.
+
+    ret                         ; Vuelve a la parte que llamo esta subrutina
+
+
+; =========================================================
+; PRENDER BUZZER
+; =========================================================
+
+prender_buzzer:
+
+    clr r16                     ; r16 = 0
+
+
+    sts TCNT1H, r16             ; Pone parte alta del contador en 0
+
+    sts TCNT1L, r16             ; Pone parte baja del contador en 0
+
+
+    ldi r16, (1<<OCIE1A)        ; Activa interrupcion Compare A
+
+    sts TIMSK1, r16             ; Habilita interrupcion Timer1
+
+
+    ret                         ; Vuelve al programa
+
+
+; =========================================================
+; APAGAR BUZZER
+; =========================================================
+
+apagar_buzzer:
+
+    clr r16                     ; r16 = 0
+
+    sts TIMSK1, r16             ; Deshabilita interrupcion Timer1
+
+
+    cbi PORTB, PB2              ; D10 queda en 0 y apaga el buzzer
+
+
+    ret                         ; Vuelve
+
+
+; =========================================================
+; INTERRUPCION DEL TIMER
+; =========================================================
+
+int_timer:
+
+    sbi PINB, PB2               ; Cambia el estado de PB2
+                                ; Si estaba 0 pasa a 1
+                                ; Si estaba 1 pasa a 0
+                                ; Esto genera el sonido
+
+
+    reti                        ; Sale de la interrupcion
+
+
+; =========================================================
+; INTERRUPCION DEL OBSTACULO
+;
+; D7 = PD7 = PCINT23
+; =========================================================
+
+int_obstaculo:
+
+    push r16                    ; Guarda el valor actual de r16 en la pila
+
+
+    in r16, SREG                ; Copia el registro de estado SREG a r16
+
+    push r16                    ; Guarda SREG en la pila
+
+
+; La interrupcion PCINT ocurre cuando D7 cambia.
+; Puede cambiar:
+;
+; 1 -> 0 cuando presionamos
+; 0 -> 1 cuando soltamos
+;
+; Queremos actuar solamente cuando se presiona.
+
+
+    sbic PIND, PD7              ; Si PD7 esta en 0 salta la proxima instruccion
+
+    rjmp salir_int              ; Si esta en 1 no hay obstaculo activo y sale
+
+
+; Si llego hasta aca:
+; D7 = 0
+; El sensor esta presionado.
+
+
+    lds r16, estado             ; Lee el estado actual de la puerta
+
+
+    cpi r16, ABRIENDO           ; Comprueba si esta abriendo
+
+    breq detener                ; Si esta abriendo, detener por seguridad
+
+
+    cpi r16, CERRANDO           ; Comprueba si esta cerrando
+
+    breq detener                ; Si esta cerrando, detener por seguridad
+
+
+    rjmp salir_int              ; Si esta quieta, no hace nada
+
+
+; =========================================================
+; DETENER POR OBSTACULO
+; =========================================================
+
+detener:
+
+    cbi PORTB, PB0              ; D8 = 0
+
+    cbi PORTB, PB1              ; D9 = 0
+
+; Con eso el motor se detiene.
+
+
+    clr r16                     ; r16 = 0
+
+    sts TIMSK1, r16             ; Desactiva la interrupcion del buzzer
+
+    cbi PORTB, PB2              ; Apaga D10 / buzzer
+
+
+    cbi PORTD, PD4              ; Apaga LED de abriendo
+
+    cbi PORTD, PD5              ; Apaga LED de cerrando
+
+
+    sbi PORTD, PD6              ; Prende LED rojo de seguridad
+
+
+    ldi r16, DETENIDA           ; Carga valor del estado DETENIDA
+
+    sts estado, r16             ; Guarda que la puerta esta detenida
+
+
+    ldi r16, 1                  ; Carga 1
+
+    sts obstaculo, r16          ; Marca que se detecto un obstaculo
+
+
+; =========================================================
+; SALIR DE LA INTERRUPCION
+; =========================================================
+
+salir_int:
+
+    pop r16                     ; Recupera el SREG guardado
+
+    out SREG, r16               ; Devuelve ese valor a SREG
+
+
+    pop r16                     ; Recupera el valor original de r16
+
+
+    reti                        ; Sale de la interrupcion y vuelve al programa
+
+
+; =========================================================
+; USART
+; =========================================================
+
+iniciar_usart:
+
+    clr r16                     ; r16 = 0
+
+    sts UBRR0H, r16             ; Parte alta del divisor = 0
+
+
+    ldi r16, 103                ; Valor para 9600 baudios a 16 MHz
+
+    sts UBRR0L, r16             ; Guarda el valor
+
+
+    ldi r16, (1<<TXEN0)         ; Activa el transmisor USART
+
+    sts UCSR0B, r16             ; Guarda esa configuracion
+
+
+    ldi r16, (1<<UCSZ01) | (1<<UCSZ00)
+                                ; Configura palabras de 8 bits
+
+    sts UCSR0C, r16             ; USART queda en 8 bits, sin paridad, 1 stop
+
+
+    ret                         ; Vuelve al programa
+
+
+; =========================================================
+; ENVIAR UN CARACTER
+; =========================================================
+
+enviar_caracter:
+
+    lds r17, UCSR0A             ; Lee el estado del USART
+
+
+    sbrs r17, UDRE0             ; Comprueba si esta listo para transmitir
+
+    rjmp enviar_caracter        ; Si no esta listo vuelve a comprobar
+
+
+    sts UDR0, r16               ; Envia el caracter que esta en r16
+
+
+    ret                         ; Vuelve
+
+
+; =========================================================
+; ENVIAR TEXTO
+; =========================================================
+
+enviar_texto:
+
+    lpm r16, Z+                 ; Lee un caracter de la memoria Flash
+                                ; Z avanza al siguiente caracter
+
+
+    tst r16                     ; Comprueba si el caracter es 0
+
+    breq fin_texto              ; Si es 0 significa fin del texto
+
+
+    rcall enviar_caracter       ; Envia ese caracter
+
+
+    rjmp enviar_texto           ; Vuelve para leer el siguiente
+
+
+fin_texto:
+
+    ret                         ; Termina y vuelve
+
+
+; =========================================================
+; MENSAJES USART
+; =========================================================
+
+msg_abriendo:
+
+    .db "Puerta abriendo.", 13, 10, 0, 0
+                                ; Texto que se envia mientras abre
+
+
+msg_abierta:
+
+    .db "Puerta abierta.", 13, 10, 0
+                                ; Texto cuando termino de abrir
+
+
+msg_cerrando:
+
+    .db "Puerta cerrando.", 13, 10, 0, 0
+                                ; Texto mientras cierra
+
+
+msg_cerrada:
+
+    .db "Puerta cerrada.", 13, 10, 0
+                                ; Texto cuando termino de cerrar
+
+
+msg_obstaculo:
+
+    .db "Obstaculo detectado.", 13, 10, 0, 0
+                                ; Texto cuando aparece obstaculo
+
+
+msg_seguridad:
+
+    .db "Movimiento detenido por seguridad.", 13, 10, 0, 0
+                                ; Texto cuando se detiene por seguridad
