@@ -43,9 +43,9 @@ main:
     breq cmd3
 	cpi r16,'4'
     breq cmd4
-    cpi r16,'P'
+    cpi r16,'p'
     breq cmd5
-	cpi r16,'T'
+	cpi r16,'t'
     breq cmd6
 
     rjmp main
@@ -107,13 +107,14 @@ dibujar_circulo:
     call Q;Subir solenoide: ;  D3
     call delay;
     call Izquierda;
-    CALL circulo;
+    CALL circulo2;
     call delay;
     ret
 
 dibujar_pentagrama:
     call Q;Subir solenoide: ;  D3
-    call Izquierda;
+	call delay
+    call centro;
     CALL pentagrama;
     call delay;
 	ret
@@ -151,13 +152,9 @@ dibujar_todo:
     CALL pentagrama
 	call Q;Subir 
     call delay
+    CALL circulo2;
     call Q;Subir solenoide: ;  D3
     call delay;
-    call Izquierda;
-    CALL circulo;
-    call delay;
-    call Q;Subir solenoide: ;  D3
-    call Izquierda
     CALL pokemon
 	call Q;Subir 
     call delay
@@ -241,8 +238,8 @@ menu_msg1: .db "1=Triangulo",0x0D,0x0A,0
 menu_msg2: .db "2=Circulo",0x0D,0x0A,0
 menu_msg3: .db "3=pentagrama",0x0D,0x0A,0,0
 menu_msg4: .db "4=Cruz",0x0D,0x0A,0,0
-menu_msg5: .db "P=Pokemon",0x0D,0x0A,0
-menu_msg6: .db "T=Todo",0x0D,0x0A,0,0
+menu_msg5: .db "p=Pokemon",0x0D,0x0A,0
+menu_msg6: .db "t=Todo",0x0D,0x0A,0,0
 
 opcion1_msg: .db "Mostrando Triangulo",0x0D,0x0A,0
 opcion2_msg: .db "Mostrando Circulo",0x0D,0x0A,0
@@ -331,9 +328,6 @@ Centro:
     ldi r16, 0b10011000
     out PORTD, r16
 	call delay
-	ldi r16, 0b10011000
-    out PORTD, r16
-	call delay
 	ret
 ;___________________________________________________________________________
 
@@ -360,29 +354,54 @@ pentagrama:
     call E
 	call A
 	call A
-	call WD
-	call SD
-    call Q              ; Subir solenoide
 	call A
+	call SD
+	call SD
+    call W
 	call W
-    call E
-    call SDD
-    call SDD
-    call WAA
-    call SAA
+	call W
+    call SA
+    call SA
+	call SA1
+	call SA1
+	call SA1
+	call SA1
+	call SA1
     call WDD
     call WDD
+    call WDD
+    call WDD
+    call WDD
+    call WDD
+    call WDD
+	call WD1
     call Q
 
 call delay
     ret
+WDD:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delayyy
+	ldi r16, 0b01100100
+    out PORTD, r16
+    call delayy
+	ldi r16, 0b01000100
+    out PORTD, r16
+	call delayyy
+	ldi r16, 0b01100100
+    out PORTD, r16
+    call delayy
+	ret
 WAA:
 ;Movimiento hacia abajo:           ;D4
     ldi r16, 0b10100100
     out PORTD, r16
+	call delayy
     ldi r16, 0b10000100
     out PORTD, r16
-	call delay
+	call delayy
 	ret
 SAA:
 ;Movimiento hacia abajo:           ;D4
@@ -400,59 +419,12 @@ SDD:
     out PORTD, r16
 	call delay
 	ret
-WDD:
-;Movimiento hacia abajo:           ;D4
-    ldi r16, 0b01100100
-    out PORTD, r16
-    ldi r16, 0b01000100
-    out PORTD, r16
-	call delay
-	ret
+
 ;___________________________________________________________________________
 circulo:
 call Centro
 call E
-	call A1
-	call A1
-	call A1
-	call A1
-	call A1
 
-	call S1
-	call A1
-	call A1
-
-	call S1
-	call A1
-	call A1
-
-	call S1
-	call A1
-	call A1
-
-	call S1
-	call A1
-	call S1
-	call A1
-	call S1
-	call A1
-	call S1
-	call A1
-	call S1
-	call A1
-
-	call S1
-	call S1
-	call A1
-
-	call S1
-	call S1
-	call A1
-
-	call S1
-	call S1
-	call A1
-	;________________1/4
 	call S1
 	call S1
 	call S1
@@ -576,7 +548,50 @@ call E
 	call A1
 	call A1
 	call W1
+
+	;________________4/4
+	call A1
+	call A1
+	call A1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call A1
+
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
+
+	call S1
+	call S1
+	call A1
     call Q
+	;________________1/4
 	ret
 ;___________________________________________________________________________
 WA1:
@@ -637,16 +652,64 @@ S1:
 	ret
 ;___________________________________________________________________________
 pokemon:
-	call Centro
-	call Q
-	call S
-	call S
-	call A
-	call A
-	call E
-call D1
+    CALL centro
+    CALL circulo
+	call E1
+	;REDIBUJO
+	call S1
+	call S1
+	call S1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+
+	call D1
+	call S1
+	call S1
+	;____________
+	;___________parte de abajo
+    call D1
 	call D1
 	call D1
+	call D1
+	call D1
+
+	call S1
+
+    call D1
+	call D1
+	call D1
+	call D1
+	call D1
+
+	call W1
+	call D1
+	call D1
+	call D1
+	call D1
+	call D1
+
+
+	call W1
+	call D1
+	call D1
+	call W1
+	call D1
+	call D1
+	call W1
+	call D1
+	call D1
+	call W1
+	call D1
+	call D1
+	call W1
 	call D1
 	call D1
 
@@ -657,49 +720,213 @@ call D1
 	call W1
 	call D1
 	call D1
-
-	call W1
 	call D1
-	call D1
-
-
-	call W1
-	call D1
-	call W1
-	call D1
-	call W1
-	call D1
-	call W1
-	call D1
-	call W1
-	call D1
-
-	call W1
-	call W1
-	call D1
-
-	call W1
-	call W1
-	call D1
-	
-	call W1
-	call W1
-	call D1
-    call Q
-    call A
-    call A
-    call A
-    call A
-    call E
-    call W
-    call SD
-    call Q
+;__________________ ojos
+    call Q1
+    call A2
+    call A2
+	call S2
+	call S2
+	call E1
     call D
-    call WD
-    call S
+	call W1
+	call D1
+    call W
+	call D1
+	CALL W1
+	CALL W1
+	CALL A1
+	CALL S2
+	CALL S2
+	CALL S2
+
+	CALL E1
+    call SA
+	CALL A1
+	CALL W1
+	CALL A1
+	CALL A1
+	CALL W1
+	CALL W1
+	CALL D1
+	CALL Q
+	;pocisionamiento
+	CALL S2
+	CALL S2
+	CALL A3
+	CALL A3
+	CALL A3
+	;OTRO OJO
+	;parte izquierda
+	call E1
+	CALL D1
+	CALL S1
+	CALL S1
+	CALL A
+	CALL W1
+	CALL W1
+	CALL W1
+	CALL W1
+	;caño izquierdo
+	call A1
+	call W1
+	call W1
+	call D1
+	call Q
+	call S2
+	call S2
+	call E
+
+	CALL D1
+	CALL D1
+	CALL D1
+	CALL D1
+	CALL D1
+	;pupila izq
+	CALL S1
+	CALL S1
+	CALL A1
+	CALL W1
+	CALL W1
+	CALL D1
+	;ceño derecho
+	CALL D1
+	call W1
+	CALL A1
+	CALL W1
+	CALL W1
+	CALL Q
+	CALL S2
+	CALL S2
+	CALL S2
+	CALL D2
+	CALL E1
+	;BAJADA DEPARTE DERECHA OJO IZQ
+	CALL S1
+	CALL D1
+	CALL S1
+	CALL D1
+	CALL S1
+	call D1
+	CALL S1
+	;hacia pupila derecha
     call Q
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	CALL D2
+	;dibujar pupila
+	CALL W2
+	CALL W2
+	call E
+	CALL A1
+	CALL W1
+	CALL W1
+	CALL D1
+	call S1
+	call S1 
     ret
 ;___________________________________________________________________________
+E1:
+;Bajar solenoide: ;  D2
+    ldi r16, 0b00000100
+    out PORTD, r16
+	call delay
+	ret
+Q1:
+;Subir solenoide: ;  D3
+    ldi r16, 0b00001000
+    out PORTD, r16
+	call delay
+	ret
+A2:
+;Movimiento hacia izquieda arriba:           ;D4
+    ldi r16, 0b10001000
+    out PORTD, r16
+	call delay
+	ret
+A3:
+;Movimiento hacia izquieda arriba:           ;D4
+    ldi r16, 0b10001000
+    out PORTD, r16
+	call delayy
+	ret
+D2:
+;Movimiento hacia derecha arriba:          ;D5
+    ldi r16, 0b01001000
+    out PORTD, r16
+	call delayy
+	ret
+W2:
+;Movimiento hacia la izquierda:    ;D6
+    ldi r16, 0b00101000
+    out PORTD, r16
+	call delayy
+	ret
+S2:
+;Movimiento hacia la derecha:      ;D7  
+    ldi r16, 0b00011000
+    out PORTD, r16
+	call delayy
+	ret
+
+
+	;pal circulo____________________________________
+WA5:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10100100
+    out PORTD, r16
+	call delayyyy
+	ret
+SA5:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b10010100
+    out PORTD, r16
+	call delayyyy
+	ret
+SD5:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01010100
+    out PORTD, r16
+	call delayyyy
+	ret
+WD5:
+;Movimiento hacia abajo:           ;D4
+    ldi r16, 0b01100100
+    out PORTD, r16
+	call delayyyy
+	ret
+A5:
+;Movimiento hacia ARRIBA:           ;D4
+    ldi r16, 0b10000100
+    out PORTD, r16
+	call delayyyy
+	ret
+
+D5:
+;Movimiento hacia ABAJO:          ;D5
+    ldi r16, 0b01000100
+    out PORTD, r16
+	call delayyyy
+	ret
+W5:
+;Movimiento hacia la izquierda:    ;D6
+    ldi r16, 0b00100100
+    out PORTD, r16
+	call delayyyy
+	ret
+S5:
+;Movimiento hacia la derecha:      ;D7  
+    ldi r16, 0b00010100
+    out PORTD, r16
+	call delayyyy
+	ret
+;____________________________________________
 derecha:
 CALL Q
     ldi r16, 0b01001000
@@ -725,6 +952,17 @@ Delayy:
     ldi  r19, 14
     ldi  r20, 200
     ldi  r21, 199
+L3: dec  r21
+    brne L3
+    dec  r20
+    brne L3
+    dec  r19
+    brne L3
+    ret 
+Delayyy:
+    ldi  r19, 19
+    ldi  r20, 200
+    ldi  r21, 199
 L2: dec  r21
     brne L2
     dec  r20
@@ -732,3 +970,126 @@ L2: dec  r21
     dec  r19
     brne L2
     ret 
+Delayyyy:
+    ldi  r19, 5
+    ldi  r20, 200
+    ldi  r21, 199
+L4: dec  r21
+    brne L4
+    dec  r20
+    brne L4
+    dec  r19
+    brne L4
+    ret 
+
+circulo2:
+call E
+
+	call S5
+	call S5
+	call S5
+	call S5
+	call S5
+
+	call SD5
+	call S5
+	call SD5
+	call S5
+	call SD5
+	call S5
+
+	call SD5
+	call SD5
+	call SD5
+	call SD5
+	call SD5
+
+	call D5
+	call SD5
+	call D5
+	call SD5
+	call D5
+	call SD5
+	;_______________5/4
+	call D5
+	call D5
+	call D5
+	call D5
+	call D5
+
+	call WD5
+	call D5
+	call WD5
+	call D5
+	call WD5
+	call D5
+
+	call WD5
+	call WD5
+	call WD5
+	call WD5
+	call WD5
+
+	call W5
+	call WD5
+	call W5
+	call WD5
+	call W5
+	call WD5
+	;________________3/4
+	call W5
+	call W5
+	call W5
+	call W5
+	call W5
+
+	call W5
+	call WA5
+	call W5
+	call WA5
+	call W5
+	call WA5
+
+	call WA5
+	call WA5
+	call WA5
+	call WA5
+	call WA5
+
+	call A5
+	call WA5
+	call A5
+	call WA5
+	call A5
+	call WA5
+	;________________4/4
+	call A5
+	call A5
+	call A5
+	call A5
+	call A5
+
+	call SA5
+	call A5
+	call SA5
+	call A5
+	call SA5
+	call A5
+
+	call SA5
+	call SA5
+	call SA5
+	call SA5
+	call SA5
+
+	call SA5
+	call S5
+	call SA5
+	call S5
+	call SA5
+	call S5
+	call SA5
+	call S5
+    call Q
+	;________________1/4
+	ret
