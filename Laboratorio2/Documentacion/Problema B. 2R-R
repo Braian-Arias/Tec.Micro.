@@ -1,0 +1,154 @@
+.include "m328Pdef.inc"
+
+.cseg
+.org 0x0000
+    rjmp INICIO
+
+
+INICIO:
+
+    ; Inicializar Stack Pointer
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
+
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
+
+
+    ; PB0-PB5 como salida
+    ; Bits D0-D5 del DAC
+    ldi r16, 0b00111111
+    out DDRB, r16
+
+
+    ; PC0-PC1 como salida
+    ; Bits D6-D7 del DAC
+    ldi r16, 0b00000011
+    out DDRC, r16
+
+
+PRINCIPAL:
+
+    ; ------------------------
+    ; Valor 0
+    ; ------------------------
+
+    ldi r16, 0
+
+    rcall DAC_WRITE
+    rcall DELAY
+
+
+    ; ------------------------
+    ; Valor 64
+    ; ------------------------
+
+    ldi r16, 64
+
+    rcall DAC_WRITE
+    rcall DELAY
+
+
+    ; ------------------------
+    ; Valor 128
+    ; ------------------------
+
+    ldi r16, 128
+
+    rcall DAC_WRITE
+    rcall DELAY
+
+
+    ; ------------------------
+    ; Valor 192
+    ; ------------------------
+
+    ldi r16, 192
+
+    rcall DAC_WRITE
+    rcall DELAY
+
+
+    ; ------------------------
+    ; Valor 255
+    ; ------------------------
+
+    ldi r16, 255
+
+    rcall DAC_WRITE
+    rcall DELAY
+
+
+    rjmp PRINCIPAL
+
+
+
+; =========================================
+; ESCRIBIR VALOR EN DAC
+;
+; r16 = valor de 0 a 255
+; =========================================
+
+DAC_WRITE:
+
+    push r17
+
+
+    ; Bits 0-5 -> PB0-PB5
+
+    mov r17, r16
+
+    andi r17, 0b00111111
+
+    out PORTB, r17
+
+
+    ; Bits 6-7 -> PC0-PC1
+
+    mov r17, r16
+
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+    lsr r17
+
+    andi r17, 0b00000011
+
+    out PORTC, r17
+
+
+    pop r17
+
+    ret
+
+
+; =========================================
+; RETARDO
+; =========================================
+
+DELAY:
+
+    ldi r18, 30
+
+DELAY1:
+
+    ldi r19, 255
+
+DELAY2:
+
+    ldi r20, 255
+
+DELAY3:
+
+    dec r20
+    brne DELAY3
+
+    dec r19
+    brne DELAY2
+
+    dec r18
+    brne DELAY1
+
+    ret
