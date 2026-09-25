@@ -1,149 +1,225 @@
-;========================================================
-; ATmega328P #2 - RECEPTOR
-; USART -> DISPLAY 7 SEGMENTOS
+; =====================================================
+; RECEPTOR UART parte LED
+; ATmega328P - 16 MHz
+; 9600 baudios
 ;
-; PD0 = RX
-;
-; PORTB:
-; PB0 = segmento a
-; PB1 = segmento b
-; PB2 = segmento c
-; PB3 = segmento d
-; PB4 = segmento e
-; PB5 = segmento f
-; PB6 = segmento g
-; PB7 = punto decimal
-;
-; Display: CÁTODO COMÚN
-;
-; F_CPU = 16 MHz
-; Baud = 9600
-;========================================================
+; Valor 0 -> PD2
+; Valor 1 -> PD3
+; Valor 2 -> PD4
+; Valor 3 -> PD5
+; Valor 4 -> PD6
+; Valor 5 -> PD7
+; Valor 6 -> PB0
+; Valor 7 -> PB1
+; 0 = APAGADO
+; 1 = ENCENDIDO
+; =====================================================
 
 .include "m328Pdef.inc"
 
-.def temp = r16
-.def dato = r17
-
+.cseg
 .org 0x0000
-    rjmp RESET
+    rjmp INICIO
 
 
-;========================================================
-; TABLA LUT
-;========================================================
+; =====================================================
+; INICIO
+; =====================================================
 
-TABLA:
-
-    ;      abcdefg
-    .db 0b00111111      ; 0
-    .db 0b00000110      ; 1
-    .db 0b01011011      ; 2
-    .db 0b01001111      ; 3
-    .db 0b01100110      ; 4
-    .db 0b01101101      ; 5
-    .db 0b01111101      ; 6
-    .db 0b00000111      ; 7
-
-
-;========================================================
-; RESET
-;========================================================
-
-RESET:
+INICIO:
 
     ; Stack
-    ldi temp, HIGH(RAMEND)
-    out SPH, temp
+    ldi r16, HIGH(RAMEND)
+    out SPH, r16
 
-    ldi temp, LOW(RAMEND)
-    out SPL, temp
-
-
-;--------------------------------------------------------
-; PORTB como salida
-;--------------------------------------------------------
-
-    ldi temp, 0b11111111
-    out DDRB, temp
-
-    ; Apagar display
-    clr temp
-    out PORTB, temp
+    ldi r16, LOW(RAMEND)
+    out SPL, r16
 
 
-;--------------------------------------------------------
-; USART
-; 9600 baudios @ 16 MHz
-;--------------------------------------------------------
+    ; -----------------------------------
+    ; PD2-PD7 salidas
+    ; PD0 RX
+    ; -----------------------------------
 
-    ldi temp, HIGH(103)
-    sts UBRR0H, temp
+    ldi r16, 0b11111100
+    out DDRD, r16
 
-    ldi temp, LOW(103)
-    sts UBRR0L, temp
+
+    ; -----------------------------------
+    ; PB0-PB1 salidas
+    ; -----------------------------------
+
+    ldi r16, 0b00000011
+    out DDRB, r16
+
+
+    ; -----------------------------------
+    ; PC5 entrada
+    ; -----------------------------------
+
+    ldi r16, 0b00000000
+    out DDRC, r16
+
+
+    ; Pull-up en PC5
+    ldi r16, (1<<PC5)
+    out PORTC, r16
+
+    ; -----------------------------------
+    ; UART 9600 - 16 MHz
+    ; -----------------------------------
+
+    ldi r16, 0
+    sts UBRR0H, r16
+
+    ldi r16, 103
+    sts UBRR0L, r16
+
 
     ; Habilitar receptor
-    ldi temp, (1<<RXEN0)
-    sts UCSR0B, temp
-
-    ; 8 bits, 1 stop, sin paridad
-    ldi temp, (1<<UCSZ01)|(1<<UCSZ00)
-    sts UCSR0C, temp
+    ldi r16, (1<<RXEN0)
+    sts UCSR0B, r16
 
 
-;========================================================
-; PROGRAMA PRINCIPAL
-;========================================================
+    ; 8 bits, sin paridad, 1 stop
+    ldi r16, (1<<UCSZ01)|(1<<UCSZ00)
+    sts UCSR0C, r16
+
+
+; =====================================================
+; MAIN
+; =====================================================
 
 MAIN:
 
-    ; Recibir dato
-    rcall USART_RX
-
-    ; dato = 0 al 7
-
-    ;--------------------------------------------
-    ; Buscar dato en la tabla
-    ;--------------------------------------------
-
-    ldi ZH, HIGH(TABLA<<1)
-    ldi ZL, LOW(TABLA<<1)
-
-    ; Z = dirección de tabla + dato
-    add ZL, dato
-
-    ldi temp, 0
-    adc ZH, temp
-
-    ; Leer patrón del display
-    lpm temp, Z
-
-    ; Mostrar
-    out PORTB, temp
-
-    rjmp MAIN
+    ; Si PC5 está pulsado, apagar todos
+    sbis PINC, PC5
+    rcall APAGAR
 
 
-;========================================================
-; RECEPCIÓN USART
-; Salida: dato = 0...7
-;========================================================
+; =====================================================
+; ESPERAR DATO UART
+; =====================================================
 
-USART_RX:
+ESPERAR:
 
-ESPERAR_RX:
+    ; Revisar botón también mientras esperamos
+    sbis PINC, PC5
+    rcall APAGAR
 
-    lds temp, UCSR0A
 
-    ; Esperar hasta recibir
-    sbrs temp, RXC0
-    rjmp ESPERAR_RX
+    ; ¿Llegó dato?
+    lds r17, UCSR0A
+    sbrs r17, RXC0
+    rjmp ESPERAR
+
 
     ; Leer dato
-    lds dato, UDR0
+    lds r16, UDR0
 
-    ; Solo 3 bits
-    andi dato, 0b00000111
+
+    ; Solo aceptar valores 0-7
+    cpi r16, 8
+    brsh ESPERAR
+
+
+    ; -----------------------------------
+    ; Antes de prender uno,
+    ; apagar todos
+    ; -----------------------------------
+
+    rcall APAGAR
+
+
+    ; -----------------------------------
+    ; Decodificar
+    ; -----------------------------------
+
+    cpi r16, 0
+    breq LED0
+
+    cpi r16, 1
+    breq LED1
+
+    cpi r16, 2
+    breq LED2
+
+    cpi r16, 3
+    breq LED3
+
+    cpi r16, 4
+    breq LED4
+
+    cpi r16, 5
+    breq LED5
+
+    cpi r16, 6
+    breq LED6
+
+    cpi r16, 7
+    breq LED7
+
+    rjmp ESPERAR
+
+
+; =====================================================
+; APAGAR TODOS
+; HIGH = APAGADO
+; =====================================================
+
+APAGAR:
+
+    ; PD2-PD7 en HIGH
+    ldi r18, 0b00000000
+    out PORTD, r18
+
+    ; PB0-PB1 en HIGH
+    ldi r18, 0b00000000
+    out PORTB, r18
 
     ret
+
+
+; =====================================================
+; SALIDAS
+; LOW = ENCENDIDO
+; =====================================================
+
+LED0:
+    sbi PORTD, PD2
+    rjmp ESPERAR
+
+
+LED1:
+    sbi PORTD, PD3
+    rjmp ESPERAR
+
+
+LED2:
+    sbi PORTD, PD4
+    rjmp ESPERAR
+
+
+LED3:
+    sbi PORTD, PD5
+    rjmp ESPERAR
+
+
+LED4:
+    sbi PORTD, PD6
+    rjmp ESPERAR
+
+
+LED5:
+    sbi PORTD, PD7
+    rjmp ESPERAR
+
+
+LED6:
+    sbi PORTB, PB0
+    rjmp ESPERAR
+
+
+LED7:
+    sbi PORTB, PB1
+    rjmp ESPERAR
