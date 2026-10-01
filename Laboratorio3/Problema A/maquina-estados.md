@@ -1,6 +1,6 @@
 # Maquina de estados propuesta
 
-Este documento describe el ciclo del controlador antes de escribir el codigo. La lectura se realiza cada cinco segundos, como pide el problema.
+Este documento describe el ciclo del controlador. La lectura se realiza cada cinco segundos.
 
 ```mermaid
 stateDiagram-v2
