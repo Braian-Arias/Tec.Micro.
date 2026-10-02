@@ -1,0 +1,98 @@
+Probkema A
+
+#define F_CPU 16000000UL
+
+#include <avr/io.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <util/delay.h>
+
+#define VELOCIDAD_UART 9600UL
+#define VALOR_UBRR ((F_CPU / (16UL * VELOCIDAD_UART)) - 1UL)
+
+static void adc_iniciar(void)
+{
+    ADMUX = (1 << REFS0);  // Referencia de 5 V y entrada ADC0 (A0)
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+}
+
+static uint16_t adc_leer(void)
+{
+    ADCSRA |= (1 << ADSC);  // Iniciar una lectura
+    while (ADCSRA & (1 << ADSC)) {
+        // Esperar hasta que el convertidor termine
+    }
+
+    return ADC;
+}
+
+static uint16_t adc_a_temperatura(uint16_t lectura_adc)
+{
+    // El LM35 entrega 10 mV por grado; 5000 mV / 10 mV = 500.
+    // El numero largo evita que la multiplicacion se pase del limite.
+    return (uint16_t)(((uint32_t)lectura_adc * 500UL + 511UL) / 1023UL);
+}
+
+static void uart_iniciar(void)
+{
+    UBRR0H = (uint8_t)(VALOR_UBRR >> 8);
+    UBRR0L = (uint8_t)VALOR_UBRR;
+    UCSR0B = (1 << TXEN0);  // Activar envio; por ahora no recibimos comandos
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);  // 8 bits, sin paridad, 1 bit de parada
+}
+
+static void uart_enviar_caracter(char caracter)
+{
+    while (!(UCSR0A & (1 << UDRE0))) {
+        // Esperar hasta que se pueda enviar otro caracter
+    }
+
+    UDR0 = caracter;
+}
+
+static void uart_enviar_texto(const char *texto)
+{
+    while (*texto != '\0') {
+        uart_enviar_caracter(*texto);
+        texto++;
+    }
+}
+
+static void uart_enviar_numero(uint16_t numero)
+{
+    char texto_numero[6];
+    utoa(numero, texto_numero, 10);
+    uart_enviar_texto(texto_numero);
+}
+
+static void esperar_cinco_segundos(void)
+{
+    uint8_t parte;
+
+    // Dividir la espera en partes cortas para la funcion de retardo.
+    for (parte = 0; parte < 25; parte++) {
+        _delay_ms(200);
+    }
+}
+
+int main(void)
+{
+    uint16_t lectura_adc;
+    uint16_t temperatura_c;
+
+    adc_iniciar();
+    uart_iniciar();
+
+    while (1) {
+        lectura_adc = adc_leer();
+        temperatura_c = adc_a_temperatura(lectura_adc);
+
+        uart_enviar_texto("ADC: ");
+        uart_enviar_numero(lectura_adc);
+        uart_enviar_texto(" | Temperatura: ");
+        uart_enviar_numero(temperatura_c);
+        uart_enviar_texto(" C\r\n");
+
+        esperar_cinco_segundos();
+    }
+}
