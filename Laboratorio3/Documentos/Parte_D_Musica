@@ -1,0 +1,212 @@
+// Lab 3 - Problema D musica de piano 
+
+#define F_CPU 16000000UL
+
+#include <avr/io.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <util/delay.h>
+
+//_____________________ UART___________________
+
+#define VELOCIDAD_UART 9600UL
+#define VALOR_UBRR ((F_CPU / (16UL * VELOCIDAD_UART)) - 1UL)
+
+static void uart_iniciar(void)
+{
+    UBRR0H = (uint8_t)(VALOR_UBRR >> 8);
+    UBRR0L = (uint8_t)VALOR_UBRR;
+
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); // 8 bits, sin paridad, 1 bit de parada
+}
+
+static void uart_enviar_caracter(char caracter)
+{
+    while (!(UCSR0A & (1 << UDRE0))) {
+        /* Esperar */
+    }
+
+    UDR0 = caracter;
+}
+
+static void uart_enviar_texto(const char *texto)
+{
+    while (*texto != '\0') {
+        uart_enviar_caracter(*texto);
+        texto++;
+    }
+}
+
+static uint8_t uart_hay_dato(void)
+{
+    return (UCSR0A & (1 << RXC0)) != 0;
+}
+
+static char uart_recibir_caracter(void)
+{
+    return UDR0;
+}
+
+//____________________ I2C____________________
+static void i2c_iniciar(void)
+{
+    TWSR = 0;
+    TWBR = 72;       /* Aproximadamente 100 kHz */
+    TWCR = (1 << TWEN);
+}
+
+static uint8_t i2c_esperar(void)
+{
+    uint16_t intentos = 60000;
+
+    while (!(TWCR & (1 << TWINT)) && intentos > 0) {
+        intentos--;
+    }
+
+    return intentos > 0;
+}
+
+static uint8_t i2c_enviar_byte(uint8_t direccion, uint8_t dato)
+{
+    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+    if (!i2c_esperar()) {
+        return 0;
+    }
+    /* Dirección + escritura */
+    TWDR = (uint8_t)(direccion << 1);
+    TWCR = (1 << TWINT) | (1 << TWEN);
+
+    if (!i2c_esperar()) {
+        return 0;
+    }
+
+    if ((TWSR & 0xF8) != 0x18) {
+        TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+        return 0;
+    }
+
+    /* Dato */
+    TWDR = dato;
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    if (!i2c_esperar()) {
+        return 0;
+    }
+    /* STOP */
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+    return 1;
+}
+
+/* ============================================================
+   LCD I2C
+   ============================================================ */
+
+#define DIRECCION_LCD 0x27
+#define BIT_LUZ_LCD 0x08
+#define BIT_ENABLE_LCD 0x04
+#define BIT_RS_LCD 0x01
+
+static uint8_t lcd_disponible = 0;
+static uint8_t lcd_expansor(uint8_t dato)
+{
+    return i2c_enviar_byte(
+        DIRECCION_LCD,
+        (uint8_t)(dato | BIT_LUZ_LCD)
+    );
+}
+static void lcd_pulso_enable(uint8_t dato)
+{
+    lcd_expansor((uint8_t)(dato | BIT_ENABLE_LCD));
+    _delay_us(1);
+    lcd_expansor((uint8_t)(dato & ~BIT_ENABLE_LCD));
+    _delay_us(50);
+}
+static void lcd_enviar_nibble(uint8_t nibble, uint8_t modo_dato)
+{
+    uint8_t salida;
+    salida = (uint8_t)((nibble & 0x0F) << 4);
+    if (modo_dato) {
+        salida |= BIT_RS_LCD;
+    }
+    lcd_expansor(salida);
+    lcd_pulso_enable(salida);
+}
+
+static void lcd_enviar_byte(uint8_t dato, uint8_t modo_dato)
+{
+    if (!lcd_disponible) {
+        return;
+    }
+
+    lcd_enviar_nibble((uint8_t)(dato >> 4), modo_dato);
+    lcd_enviar_nibble((uint8_t)(dato & 0x0F), modo_dato);
+}
+
+static void lcd_comando(uint8_t comando)
+{
+    lcd_enviar_byte(comando, 0);
+}
+
+static void lcd_caracter(char caracter)
+{
+    lcd_enviar_byte((uint8_t)caracter, 1);
+}
+static void lcd_iniciar(void)
+{
+    _delay_ms(50);
+    lcd_disponible = lcd_expansor(0);
+    if (!lcd_disponible) {
+        return;
+    }
+    // Secuencia de inicio en modo de 4 bits.
+    lcd_enviar_nibble(0x03, 0);
+    _delay_ms(5);
+    lcd_enviar_nibble(0x03, 0);
+    _delay_us(150);
+    lcd_enviar_nibble(0x03, 0);
+    lcd_enviar_nibble(0x02, 0);
+
+    lcd_comando(0x28); // 4 bits, 2 lineas
+    lcd_comando(0x0C); // Pantalla encendida, cursor apagado
+    lcd_comando(0x06); // Avance hacia la derecha
+    lcd_comando(0x01); // Limpiar
+    _delay_ms(2);
+}
+
+static void lcd_posicion(uint8_t fila, uint8_t columna)
+{   
+    uint8_t posicion;
+    if (fila == 0) {posicion = columna;}
+    else { posicion = (uint8_t)(0x40 + columna);}
+    lcd_comando((uint8_t)(0x80 | posicion));
+}
+
+static void lcd_texto(const char *texto)
+{
+    while (*texto != '\0') {
+        lcd_caracter(*texto);
+        texto++;
+    }
+}
+
+static void lcd_numero(uint16_t numero)
+{
+    char texto_numero[6];
+    utoa(numero, texto_numero, 10);
+    lcd_texto(texto_numero);
+}
+
+static void lcd_limpiar(void)
+{
+    lcd_comando(0x01);
+    _delay_ms(2);
+}
+
+static void lcd_limpiar_linea(uint8_t fila)
+{
+    uint8_t columna;
+    lcd_posicion(fila, 0);
+    for (columna = 0; columna < 16; columna++) {
+        lcd_caracter(' ');
+    }
+}
