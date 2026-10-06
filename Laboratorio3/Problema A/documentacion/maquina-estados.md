@@ -51,8 +51,3 @@ Con `PM = 22 C` y una lectura de `42 C`:
 3. El controlador elige `VENTILAR_MEDIO`.
 4. Apaga la salida del calefactor, aplica el PWM medio y reporta la accion.
 
-## Decisiones pendientes
-
-- Elegir los valores PWM concretos con el motor disponible.
-- Definir limites admitidos para PM y el texto exacto para los errores.
-- Confirmar que la frecuencia de actualizacion del LCD y UART sea adecuada junto al periodo de lectura.
