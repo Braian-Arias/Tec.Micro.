@@ -1,49 +1,121 @@
-# Conexiones y pines
+# Conexiones del armado fisico
 
-La numeracion corresponde al simbolo del ATmega328P de 32 pines usado en Proteus.
+Las conexiones siguientes corresponden al Arduino UNO R3 con ATmega328P. Se deben
+realizar con el Arduino y la fuente externa apagados.
 
-## Entradas y salidas del ATmega328P
+## Resumen de pines
 
-| Pin del ATmega | Conexion | Uso |
+| Elemento | Pin del elemento | Conexion en Arduino o circuito |
 |---|---|---|
-| PC0/ADC0, pin 23 | Salida VOUT del LM35 | Lectura de temperatura. |
-| PD0/RXD, pin 30 | TXD del Virtual Terminal | Recepcion de comandos. |
-| PD1/TXD, pin 31 | RXD del Virtual Terminal | Envio de datos. |
-| PB0, pin 12 | Resistencia de 220 ohm y LED | Calefactor. |
-| PD6/OC0A, pin 10 | Resistencia de 220 ohm y Gate del IRLZ44N | PWM del motor. |
-| PC4/SDA, pin 27 | SDA del PCF8574, pin 15 | Datos I2C. |
-| PC5/SCL, pin 28 | SCL del PCF8574, pin 14 | Reloj I2C. |
-| RESET, pin 29 | Resistencia de 10 kohm a 5 V | Mantiene el micro fuera de reset. |
-| AVCC, pin 18 | 5 V | Alimentacion de la parte analogica. |
-| AREF, pin 20 | Capacitor de 100 nF a GND | Referencia del conversor ADC. |
+| LM35 | `+VS` | `5V` del Arduino |
+| LM35 | `VOUT` | `A0` |
+| LM35 | `GND` | GND comun |
+| LCD I2C | `VCC` | `5V` del Arduino |
+| LCD I2C | `GND` | GND comun |
+| LCD I2C | `SDA` | `A4` |
+| LCD I2C | `SCL` | `A5` |
+| LED calefactor | Anodo, pata larga | `D8` mediante resistencia de 220 ohm |
+| LED calefactor | Catodo, pata corta | GND comun |
+| IRLZ44N | Gate (`G`) | `D6` mediante resistencia de 330 ohm |
+| IRLZ44N | Drain (`D`) | Terminal negativo del motor |
+| IRLZ44N | Source (`S`) | GND comun |
+| Motor DC | Terminal positivo | Positivo de la fuente externa |
+| Motor DC | Terminal negativo | Drain del IRLZ44N |
+| Fuente externa | Negativo | GND comun |
+
+## Alimentacion
+
+- El Arduino se alimenta desde el cable USB.
+- El LM35 y el LCD se alimentan desde los 5 V del Arduino.
+- El motor se alimenta con una fuente externa apropiada para su voltaje.
+- El negativo de la fuente externa debe unirse al GND del Arduino.
+- El positivo de la fuente externa no se conecta al pin `5V` del Arduino mientras
+  el Arduino esta conectado por USB.
+- El motor no debe alimentarse directamente desde el pin `5V` del Arduino.
+
+Todos los puntos GND forman una tierra comun: Arduino, LM35, LCD, MOSFET y negativo
+de la fuente externa.
 
 ## Sensor LM35
 
-| Pin del LM35 | Conexion |
+Mirando la cara plana del LM35 hacia adelante y con las patas hacia abajo:
+
+| Posicion | Conexion |
 |---|---|
-| 1, +VS | 5 V |
-| 2, VOUT | PC0/ADC0 del ATmega, pin 23 |
-| 3, GND | GND |
+| Pata izquierda | `5V` |
+| Pata central | `A0` |
+| Pata derecha | `GND` |
 
-## PCF8574 y LCD
+El cuerpo negro del LM35 siente la temperatura. La pata central entrega 10 mV por
+cada grado Celsius; por ejemplo, 0,30 V representan aproximadamente 30 C.
 
-| PCF8574 | LCD LM016L |
+## LCD con modulo I2C
+
+| LCD I2C | Arduino UNO |
 |---|---|
-| P0, pin 4 | RS, pin 4 |
-| P1, pin 5 | RW, pin 5 |
-| P2, pin 6 | E, pin 6 |
-| P4, pin 9 | D4, pin 11 |
-| P5, pin 10 | D5, pin 12 |
-| P6, pin 11 | D6, pin 13 |
-| P7, pin 12 | D7, pin 14 |
+| `GND` | `GND` |
+| `VCC` | `5V` |
+| `SDA` | `A4` |
+| `SCL` | `A5` |
 
-Los pines A0, A1 y A2 del PCF8574 se conectan a 5 V. De esta forma la direccion
-I2C utilizada por el programa es `0x27`. SDA y SCL llevan resistencias de 4,7 kohm
-hacia 5 V.
+El programa utiliza la direccion I2C `0x27`. Si la pantalla enciende pero no se ve
+el texto, se debe ajustar lentamente el tornillo de contraste del modulo.
 
-## Motor y transistor
+## LED que representa el calefactor
 
-La salida PD6 llega al Gate del IRLZ44N por una resistencia de 220 ohm. El Source
-va a GND y el Drain al terminal negativo del motor. El positivo del motor va a 5 V.
-El diodo 1N4007 se conecta en paralelo con el motor: catodo a 5 V y anodo al Drain.
+```text
+D8 --- resistencia de 220 ohm --- anodo del LED
+GND ----------------------------- catodo del LED
+```
 
+## Motor, MOSFET y diodo
+
+Mirando el IRLZ44N de frente, con las letras hacia adelante y las patas hacia
+abajo, el orden es: Gate, Drain y Source (`G-D-S`).
+
+```text
+D6 --- resistencia de 330 ohm --- Gate
+Gate --- resistencia de 10 kohm --- GND
+Source ---------------------------- GND comun
+Drain ----------------------------- terminal negativo del motor
+Positivo de la fuente externa ----- terminal positivo del motor
+Negativo de la fuente externa ----- GND comun
+```
+
+El diodo 1N4007 se coloca en paralelo con el motor:
+
+- Extremo con franja gris: positivo de la fuente y del motor.
+- Extremo sin franja: terminal negativo del motor y Drain del MOSFET.
+
+No se necesita un puente H porque el motor solamente gira en un sentido. La
+velocidad se controla mediante PWM desde `D6`.
+
+![Conexion del motor con MOSFET](conexion-motor-mosfet.png)
+
+## Comunicacion UART
+
+La comunicacion UART se realiza mediante el cable USB del Arduino a 9600 baudios.
+Los pines `D0` y `D1` se dejan libres para no interferir con la programacion ni con
+el monitor serial.
+
+## Conexion temporal para probar los rangos
+
+Para simular temperaturas se desconecta completamente el LM35 de `A0` y se conecta:
+
+```text
+5V --- dos resistencias de 100 kohm en paralelo --- extremo del potenciometro
+A0 ----------------------------------------------- cursor central
+GND ---------------------------------------------- otro extremo
+```
+
+Con dos resistencias de 100 kohm en paralelo y un potenciometro de 10 kohm se
+pueden simular aproximadamente de 0 a 83 C. Al terminar la prueba se retira este
+circuito y se vuelve a conectar solamente el LM35 en `A0`.
+
+## Comprobacion antes de encender
+
+- Revisar que Gate, Drain y Source no esten intercambiados.
+- Comprobar que la franja gris del diodo quede hacia el positivo.
+- Confirmar que todos los GND esten unidos.
+- Confirmar que el positivo externo alimente solamente al motor.
+- Revisar que no existan cables sueltos o cortocircuitos en la protoboard.

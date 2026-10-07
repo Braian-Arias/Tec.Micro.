@@ -10,6 +10,16 @@ del Problema A del Laboratorio 3.
 - `documentacion`: explicacion del funcionamiento y maquina de estados.
 - `evidencias`: capturas de las pruebas realizadas.
 
+## Documentacion del armado
+
+- [Materiales utilizados](documentacion/componentes.md).
+- [Conexiones completas](documentacion/conexiones-y-pines.md).
+- [Funcionamiento del LM35](documentacion/sensor-lm35.md).
+- [LCD y comunicacion I2C](documentacion/lcd-i2c.md).
+
+El motor utiliza una fuente externa y no se alimenta desde el pin `5V` del
+Arduino. El negativo de esa fuente se conecta al GND comun del circuito.
+
 ## Rangos utilizados
 
 | Temperatura | Calefactor | Motor |
@@ -32,4 +42,3 @@ del Problema A del Laboratorio 3.
 - [ ] Agregar evidencia del LCD.
 - [ ] Agregar evidencia de la terminal UART.
 - [ ] Agregar evidencia del cambio del punto medio.
-

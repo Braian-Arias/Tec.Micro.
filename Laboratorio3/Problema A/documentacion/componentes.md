@@ -1,23 +1,57 @@
-# Lista de componentes
+# Materiales utilizados
 
-Para la simulacion del control de temperatura se utilizaron los siguientes componentes:
+Esta lista corresponde al armado fisico del Problema A. La simulacion de Proteus
+usa algunos elementos adicionales que se indican al final.
 
-| Cantidad | Componente | Funcion |
+## Armado fisico
+
+| Cantidad | Material | Uso |
 |---:|---|---|
-| 1 | ATmega328P | Lee el sensor y controla todas las salidas. |
-| 1 | LM35 | Mide la temperatura. |
-| 1 | LCD LM016L 16x2 | Muestra la temperatura, el punto medio y el estado. |
-| 1 | PCF8574 | Comunica el ATmega con el LCD mediante I2C. |
-| 1 | Potenciometro de 10 kohm | Ajusta el contraste del LCD. |
-| 1 | Virtual Terminal | Permite usar el menu UART. |
+| 1 | Arduino UNO R3 con ATmega328P | Ejecuta el programa y controla el sistema. |
+| 1 | Sensor LM35 | Mide la temperatura ambiente. |
+| 1 | LCD 16x2 con modulo I2C | Muestra temperatura, punto medio y estado. |
+| 1 | Motor DC | Representa el ventilador. |
+| 1 | MOSFET IRLZ44N | Permite controlar el motor desde el pin PWM del Arduino. |
+| 1 | Diodo 1N4007 | Protege contra los picos producidos por el motor. |
 | 1 | LED rojo | Representa el calefactor. |
-| 1 | Motor DC de 5 V | Representa el ventilador. |
-| 1 | IRLZ44N | Permite controlar el motor con la salida PWM. |
-| 1 | Diodo 1N4007 | Protege el circuito de los picos producidos por el motor. |
-| 2 | Resistencias de 220 ohm | Limitan la corriente del LED y de la compuerta del transistor. |
-| 2 | Resistencias de 10 kohm | Se usan en RESET y como resistencia de bajada del transistor. |
-| 2 | Resistencias de 4,7 kohm | Mantienen en alto las lineas SDA y SCL del bus I2C. |
-| 4 | Capacitores de 100 nF | Ayudan a estabilizar la alimentacion y la referencia analogica. |
+| 1 | Resistencia de 220 ohm | Limita la corriente del LED. |
+| 1 | Resistencia de 330 ohm | Se conecta entre D6 y el Gate del MOSFET. |
+| 1 | Resistencia de 10 kohm | Mantiene apagado el MOSFET cuando no recibe señal. |
+| 1 | Fuente externa regulada | Alimenta solamente el motor con su voltaje correspondiente. |
+| 1 | Protoboard | Permite realizar las conexiones. |
+| Varios | Cables jumper | Unen los componentes. |
+| 1 | Cable USB | Alimenta y programa el Arduino, y permite usar UART. |
 
-La alimentacion utilizada es de 5 V y todas las tierras se conectan a un GND comun.
+La fuente externa debe tener el voltaje indicado en el motor y entregar corriente
+suficiente para hacerlo arrancar. Para un motor de 5 V se puede utilizar una
+fuente regulada de 5 V y al menos 1 A.
 
+## Materiales recomendados
+
+| Cantidad | Material | Uso |
+|---:|---|---|
+| 1 | Capacitor de 100 nF | Ayuda a reducir ruido en la alimentacion. |
+| 1 | Capacitor de 100 uF o mayor | Ayuda a evitar caidas de tension al arrancar el motor. |
+| 1 | Multimetro | Permite comprobar voltajes y continuidad. |
+
+## Prueba de temperaturas simuladas
+
+Para probar los rangos sin calentar el LM35 se puede usar temporalmente:
+
+| Cantidad | Material | Uso |
+|---:|---|---|
+| 1 | Potenciometro de 10 kohm | Simula la salida analogica del LM35. |
+| 2 | Resistencias de 100 kohm | En paralelo equivalen a 50 kohm y hacen mas facil el ajuste. |
+
+El potenciometro y el LM35 no deben estar conectados a A0 al mismo tiempo.
+
+## Elementos usados solamente en Proteus
+
+- LCD LM016L.
+- PCF8574 separado del LCD.
+- Virtual Terminal.
+- Resistencias I2C de 4,7 kohm.
+- Potenciometro de contraste del LCD.
+
+En el armado fisico, el modulo I2C del LCD ya contiene el PCF8574, el ajuste de
+contraste y normalmente las resistencias necesarias.
