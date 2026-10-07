@@ -10,10 +10,16 @@ del Problema A del Laboratorio 3.
 - `documentacion`: explicacion del funcionamiento y maquina de estados.
 - `evidencias`: capturas de las pruebas realizadas.
 
-## Documentacion del armado
+## Armado fisico
 
-- [Materiales utilizados](documentacion/componentes.md).
-- [Conexiones completas](documentacion/conexiones-y-pines.md).
+- [Carpeta del armado fisico](Armado%20fisico/README.md).
+- [Materiales utilizados](Armado%20fisico/componentes.md).
+- [Conexiones completas](Armado%20fisico/conexiones.md).
+- [Guia de pruebas](Armado%20fisico/pruebas.md).
+- [Espacio para evidencias](Armado%20fisico/evidencias/README.md).
+
+## Documentacion del funcionamiento
+
 - [Funcionamiento del LM35](documentacion/sensor-lm35.md).
 - [LCD y comunicacion I2C](documentacion/lcd-i2c.md).
 
