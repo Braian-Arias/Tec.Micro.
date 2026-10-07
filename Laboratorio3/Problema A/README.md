@@ -12,11 +12,11 @@ del Problema A del Laboratorio 3.
 
 ## Armado fisico
 
-- [Carpeta del armado fisico](Armado%20fisico/README.md).
+- [Carpeta del armado fisico](Armado%20fisico/).
 - [Materiales utilizados](Armado%20fisico/componentes.md).
 - [Conexiones completas](Armado%20fisico/conexiones.md).
 - [Guia de pruebas](Armado%20fisico/pruebas.md).
-- [Espacio para evidencias](Armado%20fisico/evidencias/README.md).
+- [Evidencias del armado](Armado%20fisico/evidencias/).
 
 ## Documentacion del funcionamiento
 
@@ -25,6 +25,15 @@ del Problema A del Laboratorio 3.
 
 El motor utiliza una fuente externa y no se alimenta desde el pin `5V` del
 Arduino. El negativo de esa fuente se conecta al GND comun del circuito.
+
+## Visualizacion de resultados
+
+- [Programa de registro y graficas](visualizacion/README.md).
+- [Codigo Python](visualizacion/registrar_y_graficar.py).
+- [Datos para realizar una prueba](visualizacion/datos_ejemplo.csv).
+
+El programa guarda las mediciones recibidas por UART y grafica la temperatura,
+las acciones del calefactor y del ventilador, el punto medio y el rango ideal.
 
 ## Rangos utilizados
 
@@ -48,3 +57,5 @@ Arduino. El negativo de esa fuente se conecta al GND comun del circuito.
 - [ ] Agregar evidencia del LCD.
 - [ ] Agregar evidencia de la terminal UART.
 - [ ] Agregar evidencia del cambio del punto medio.
+- [x] Agregar programa para registrar y graficar resultados.
+- [ ] Agregar CSV y grafica de una prueba con el circuito real.
