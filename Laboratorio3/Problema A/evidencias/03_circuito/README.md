@@ -1,9 +1,4 @@
-# Circuito completo
+# Circuito en Proteus
 
-Agregar aqui:
-
-- [ ] Una captura del circuito completo en Proteus.
-- [ ] Una segunda captura de las conexiones, si la primera no se lee bien.
-
-La simulacion debe estar abierta y sin errores visibles.
-
+En esta carpeta estan las capturas del circuito armado en Proteus y una prueba de
+la simulacion funcionando.
