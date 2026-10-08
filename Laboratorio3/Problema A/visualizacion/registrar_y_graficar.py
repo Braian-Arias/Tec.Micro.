@@ -128,6 +128,14 @@ def guardar_csv(datos, ruta):
 def crear_grafica(datos, ruta):
     tiempos = [dato["tiempo_s"] for dato in datos]
     temperaturas = [dato["temperatura_c"] for dato in datos]
+    temperaturas_validas = [
+        temperatura if 0 <= temperatura <= 100 else float("nan")
+        for temperatura in temperaturas
+    ]
+    tiempos_error = [
+        dato["tiempo_s"] for dato in datos if dato["temperatura_c"] > 100
+    ]
+    marcas_error = [100 for dato in datos if dato["temperatura_c"] > 100]
     puntos_medios = [dato["punto_medio_c"] for dato in datos]
     limites_inferiores = [max(0, punto - 5) for punto in puntos_medios]
     limites_superiores = [min(100, punto + 6) for punto in puntos_medios]
@@ -147,12 +155,27 @@ def crear_grafica(datos, ruta):
         label="Rango ideal",
     )
     grafica_temp.plot(
-        tiempos, temperaturas, color="#c62828", marker="o", label="Temperatura"
+        tiempos,
+        temperaturas_validas,
+        color="#c62828",
+        marker="o",
+        label="Temperatura",
     )
+    if tiempos_error:
+        grafica_temp.scatter(
+            tiempos_error,
+            marcas_error,
+            color="#7b1fa2",
+            marker="x",
+            s=80,
+            linewidths=2,
+            label="Error sensor (>100 C)",
+        )
     grafica_temp.plot(
         tiempos, puntos_medios, color="#333333", linestyle="--", label="Punto medio"
     )
     grafica_temp.set_ylabel("Temperatura (C)")
+    grafica_temp.set_ylim(0, 105)
     grafica_temp.set_title("Comportamiento del control de temperatura")
     grafica_temp.grid(True, alpha=0.3)
     grafica_temp.legend(loc="best")

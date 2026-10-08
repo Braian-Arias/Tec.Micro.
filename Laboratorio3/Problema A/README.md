@@ -30,7 +30,8 @@ Arduino. El negativo de esa fuente se conecta al GND comun del circuito.
 
 - [Programa de registro y graficas](visualizacion/README.md).
 - [Codigo Python](visualizacion/registrar_y_graficar.py).
-- [Datos para realizar una prueba](visualizacion/datos_ejemplo.csv).
+- [Datos del ultimo registro](visualizacion/evidencias/ultimo_registro.csv).
+- [Grafica del ultimo registro](visualizacion/evidencias/ultimo_registro.png).
 
 El programa guarda las mediciones recibidas por UART y grafica la temperatura,
 las acciones del calefactor y del ventilador, el punto medio y el rango ideal.

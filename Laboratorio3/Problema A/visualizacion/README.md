@@ -1,75 +1,70 @@
 # Visualizacion de resultados
 
-El programa `registrar_y_graficar.py` recibe los datos enviados por UART, los
-guarda en un archivo CSV y crea una grafica PNG.
+El programa `registrar_y_graficar.py` recibe por UART los datos del ATmega328P,
+los guarda en un archivo CSV y crea una grafica PNG.
 
-La grafica incluye:
+La grafica muestra:
 
-1. Evolucion de la temperatura medida.
-2. Encendido y apagado del calefactor.
-3. Porcentaje de velocidad del ventilador.
-4. Punto medio configurado.
-5. Rango ideal de temperatura alrededor del punto medio.
+1. Temperatura medida a lo largo del tiempo.
+2. Punto medio y rango ideal.
+3. Encendido y apagado del calefactor.
+4. Porcentaje de velocidad del ventilador.
+5. Lecturas mayores a 100 C marcadas como error del sensor.
 
-Para un punto medio de 22 C, el rango ideal mostrado es de 17 a 28 C.
+## Ultimo registro realizado
+
+La prueba utilizada como evidencia duro 103,7 segundos y contiene 20 mediciones
+con un punto medio de 22 C.
+
+- [Datos del ultimo registro](evidencias/ultimo_registro.csv).
+- [Grafica del ultimo registro](evidencias/ultimo_registro.png).
+- [Captura de la terminal](evidencias/registro_prueba.png).
+
+Durante la prueba se recorrieron los estados `CALENTAR`, `ESTABLE`, `VENT_BAJO`,
+`VENT_MEDIO`, `VENT_ALTO` y `ERROR_SENSOR`. Las lecturas de 109 a 181 C se
+conservan en el CSV, pero en la grafica se marcan como errores porque estan fuera
+del intervalo admitido por el programa.
+
+## Tabla usada para comprobar el funcionamiento
+
+Con el punto medio colocado en 22 C, los resultados esperados son:
+
+| Temperatura | Calefactor | Ventilador | Estado esperado |
+|---:|---|---|---|
+| 0 a 16 C | Encendido | Apagado | `CALENTAR` |
+| 17 a 28 C | Apagado | Apagado | `ESTABLE` |
+| 29 a 39 C | Apagado | 35 % | `VENT_BAJO` |
+| 40 a 50 C | Apagado | 65 % | `VENT_MEDIO` |
+| 51 a 100 C | Apagado | 100 % | `VENT_ALTO` |
+| Mayor a 100 C | Apagado | Apagado | `ERROR_SENSOR` |
+
+En este registro, la medicion de 16 C aparecio como `ESTABLE`. Esto muestra una
+diferencia de un grado entre el programa cargado y la tabla requerida. El CSV no
+se modifico porque representa lo que realmente envio el circuito.
 
 ## Formato recibido por UART
 
 El ATmega328P envia una linea cada cinco segundos:
 
 ```text
-DATO,30,22,0,35,VENT_BAJO
+DATO,38,22,0,35,VENT_BAJO
 ```
 
 El orden es: temperatura, punto medio, calefactor, porcentaje del ventilador y
 estado del sistema.
 
-## Preparacion
+## Registrar una nueva prueba
 
-1. Instalar Python 3.
-2. Abrir una terminal dentro de esta carpeta.
-3. Instalar las bibliotecas necesarias:
-
-```powershell
-py -m pip install -r requirements.txt
-```
-
-## Registrar una prueba real
-
-Cerrar primero el monitor serial de Arduino, Microchip Studio o cualquier programa
-que este utilizando el puerto. Luego ejecutar:
+Cerrar el monitor serial de Arduino, Microchip Studio o cualquier otro programa
+que este usando el puerto. Luego ejecutar:
 
 ```powershell
 py registrar_y_graficar.py --puerto COM3 --duracion 120
 ```
 
-- `COM3` se cambia si el Arduino aparece en otro puerto.
-- `120` es la duracion de la prueba en segundos.
-- Se recomienda registrar al menos dos minutos porque el circuito envia una
-  medicion cada cinco segundos.
-
-Los archivos se guardan automaticamente dentro de `resultados`:
-
-- Un CSV con todas las mediciones.
-- Una imagen PNG con las graficas.
-
-## Probar sin conectar el circuito
-
-El archivo `datos_ejemplo.csv` permite comprobar el programa:
+Los archivos nuevos se guardan automaticamente dentro de la carpeta `resultados`.
+Para volver a crear la grafica de la evidencia actual se puede ejecutar:
 
 ```powershell
-py registrar_y_graficar.py --archivo datos_ejemplo.csv
+py registrar_y_graficar.py --archivo evidencias/ultimo_registro.csv
 ```
-
-Este comando genera `datos_ejemplo.png`. Los datos de ejemplo sirven para revisar
-el funcionamiento del programa, pero la entrega final debe incluir una prueba
-registrada con el circuito real.
-
-## Evidencias para GitHub
-
-Se recomienda subir:
-
-- El CSV de una prueba completa.
-- La grafica PNG creada a partir de esa prueba.
-- Una foto del circuito durante el registro.
-- Una breve explicacion de los cambios observados en la temperatura y las salidas.
