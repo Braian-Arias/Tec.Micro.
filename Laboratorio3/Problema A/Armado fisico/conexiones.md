@@ -112,10 +112,4 @@ Con dos resistencias de 100 kohm en paralelo y un potenciometro de 10 kohm se
 pueden simular aproximadamente de 0 a 83 C. Al terminar la prueba se retira este
 circuito y se vuelve a conectar solamente el LM35 en `A0`.
 
-## Comprobacion antes de encender
 
-- Revisar que Gate, Drain y Source no esten intercambiados.
-- Comprobar que la franja gris del diodo quede hacia el positivo.
-- Confirmar que todos los GND esten unidos.
-- Confirmar que el positivo externo alimente solamente al motor.
-- Revisar que no existan cables sueltos o cortocircuitos en la protoboard.
