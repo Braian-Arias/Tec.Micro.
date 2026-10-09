@@ -21,37 +21,3 @@ usa algunos elementos adicionales que se indican al final.
 | 1 | Protoboard | Permite realizar las conexiones. |
 | Varios | Cables jumper | Unen los componentes. |
 | 1 | Cable USB | Alimenta y programa el Arduino, y permite usar UART. |
-
-La fuente externa debe tener el voltaje indicado en el motor y entregar corriente
-suficiente para hacerlo arrancar. Para un motor de 5 V se puede utilizar una
-fuente regulada de 5 V y al menos 1 A.
-
-## Materiales recomendados
-
-| Cantidad | Material | Uso |
-|---:|---|---|
-| 1 | Capacitor de 100 nF | Ayuda a reducir ruido en la alimentacion. |
-| 1 | Capacitor de 100 uF o mayor | Ayuda a evitar caidas de tension al arrancar el motor. |
-| 1 | Multimetro | Permite comprobar voltajes y continuidad. |
-
-## Prueba de temperaturas simuladas
-
-Para probar los rangos sin calentar el LM35 se puede usar temporalmente:
-
-| Cantidad | Material | Uso |
-|---:|---|---|
-| 1 | Potenciometro de 10 kohm | Simula la salida analogica del LM35. |
-| 2 | Resistencias de 100 kohm | En paralelo equivalen a 50 kohm y hacen mas facil el ajuste. |
-
-El potenciometro y el LM35 no deben estar conectados a A0 al mismo tiempo.
-
-## Elementos usados solamente en Proteus
-
-- LCD LM016L.
-- PCF8574 separado del LCD.
-- Virtual Terminal.
-- Resistencias I2C de 4,7 kohm.
-- Potenciometro de contraste del LCD.
-
-En el armado fisico, el modulo I2C del LCD ya contiene el PCF8574, el ajuste de
-contraste y normalmente las resistencias necesarias.
