@@ -69,9 +69,9 @@ static uint8_t lcd_disponible = 0;
 #define NOTA_SOL  392
 #define NOTA_LA   440
 #define NOTA_SI   494
-#define NOTA_DO2   523
+#define NOTA_DO2  523
 
-static const uint16_t frecuencias_notas[9] = {
+static const uint16_t frecuencias_notas[10] = {
     0,
     NOTA_DO,
     NOTA_RE,
@@ -80,11 +80,12 @@ static const uint16_t frecuencias_notas[9] = {
     NOTA_SOL,
     NOTA_LA,
     NOTA_SI,
-    NOTA_DO2
+    NOTA_DO2,
+	NOTA_SILENCIO
 };
 
 //Nombres para mostrar en LCD
-static const char *nombres_notas[9] = {
+static const char *nombres_notas[10] = {
     "",
     "DO",
     "RE",
@@ -93,7 +94,8 @@ static const char *nombres_notas[9] = {
     "SOL",
     "LA",
     "SI",
-    "DO5"
+    "DO5",
+	"MUTE"
 };
 
 //modos del codigo
@@ -174,8 +176,6 @@ static uint8_t i2c_enviar_byte(uint8_t direccion, uint8_t dato)
 
     return 1;
 }
-
-
  //LCD
 //______________________________________________________
 static uint8_t lcd_expansor(uint8_t dato)
@@ -432,7 +432,7 @@ static uint8_t leer_boton(void)
  *
  * f = F_CPU / (2 * prescaler * (OCR2A + 1))
  *
- * Se utiliza prescaler 8.
+ * Se utiliza prescaler 128.
  */
 
 static void buzzer_melodia_detener(void)
@@ -446,30 +446,20 @@ static void buzzer_melodia_detener(void)
 static void buzzer_melodia_frecuencia(uint16_t frecuencia)
 {
     uint32_t valor;
+  if (frecuencia == 0) {
+	  buzzer_melodia_detener();
+	  return;
+  }
 
-    if (frecuencia == 0) {
-        buzzer_melodia_detener();
-        return;
-    }
+  valor = ((uint32_t)F_CPU / (2UL * 128UL * frecuencia)) - 1UL;
 
-    valor =
-        ((uint32_t)F_CPU /
-        (2UL * 8UL * frecuencia)) - 1UL;
+  if (valor > 255UL) valor = 255UL;
 
-    if (valor > 255UL) {
-        valor = 255UL;
-    }
-
-    DDRB |= (1 << BUZZER_MELODIA_PIN);
-
-    TCCR2A =
-        (1 << COM2A0) |
-        (1 << WGM21);
-
-    TCCR2B =
-        (1 << CS21);
-
-    OCR2A = (uint8_t)valor;
+  DDRB |= (1<<DDB3);
+  TCNT2 = 0;
+  OCR2A = (uint8_t)valor;
+  TCCR2A = (1<<COM2A0) | (1<<WGM21);
+  TCCR2B = (1<<CS22) | (1<<CS20);
 }
 
  // TIMER1 - BUZZER BAJO
@@ -565,7 +555,7 @@ static void detener_sonido(void)
 //______________________________________________________
 static void reproducir_nota(uint8_t nota)
 {
-    if (nota == 0 || nota > 8) {
+    if (nota == 0 || nota > 9) {
         detener_sonido();
         return;
     }
@@ -600,78 +590,60 @@ typedef struct {
     uint8_t duracion;
 } nota_cancion_t;
 
- //CANCIONES 1
+ //ejemplo
 //______________________________________________________
-/*
- * DO DO SOL SOL LA LA SOL
- * FA FA MI MI RE RE DO
- */
-
+//           nota , duración
+//{1, 1}, // 1 = do , 1 = 250 ms
+//{2, 2}, // 2 = re , 2 = 500 ms
+//{3, 3}, // 3 = mi , 3 = 750 ms
+//{4, 4}, // 4 = fa , 4 = 1000 ms
+//{5, 1}, // 5 = sol
+//{6, 1}, // 6 = la
+//{7, 1}, // 7 = si
+//{8, 2}, // 8 = do2
+//{9, 2}, // 9 = mute
+	
+ //CANCIONES 1 "Megalovania" Undertale
+//______________________________________________________
 static const nota_cancion_t cancion1[] = {
-
-    {1, 1}, // nota , duración
-    {1, 1}, // 1 = do , 1 = 250 ms 2 = 500 ms 3 = 750 ms 4 = 1000 ms
-    {5, 1},
-    {5, 1},
-    {6, 1},
-    {6, 1},
-    {5, 2},
-
-    {4, 1},
-    {4, 1},
-    {3, 1},
-    {3, 1},
+    {2, 1}, {2, 1},
+    {1, 1}, {1, 1},
+    {2, 1}, {2, 1},
+	{9, 2},  
+	{2, 1}, {2, 1},
+	{1, 1}, {1, 1},
+	{2, 1}, {2, 1},
+	{9, 2},
+    {2, 1}, {2, 1},
+		 
     {2, 1},
-    {2, 1},
-    {1, 2},
-
-    {0, 0}
+    {6, 1},
+    {5, 1},
+    {5, 1}, 
+    {4, 1},
+    {2, 1}, 
+    {4, 1},  
+    {5, 2},  
+    {0, 1}   
 };
 
- //CANCIONES 2
+ //CANCIONES 2 "Underground Theme" Super Mario Bros. 
 //______________________________________________________
 static const nota_cancion_t cancion2[] = {
 
-    {3, 1},
-    {3, 1},
-    {4, 1},
-    {5, 1},
+    {6, 1}, // La (grave)
+    {8, 1}, // Do2 (agudo - reemplaza al La agudo para dar el efecto de salto)
+    {9, 1}, // Silencio corto
+    {4, 1}, // Fa (grave)
+    {4, 1}, // Fa (agudo - usando la misma tecla blanca)
+    {9, 1}, // Silencio corto
+    {5, 1}, // Sol (grave)
+    {5, 1}, // Sol (agudo - usando la misma tecla blanca)
+    {9, 4}, // Silencio un poco más largo
 
-    {5, 1},
-    {4, 1},
-    {3, 1},
-    {2, 1},
-
-    {1, 1},
-    {1, 1},
-    {2, 1},
-    {3, 1},
-
-    {3, 2},
-    {2, 2},
-
-    {3, 1},
-    {3, 1},
-    {4, 1},
-    {5, 1},
-
-    {5, 1},
-    {4, 1},
-    {3, 1},
-    {2, 1},
-
-    {1, 1},
-    {1, 1},
-    {2, 1},
-    {3, 1},
-
-    {2, 2},
-    {1, 2},
-
-    {0, 0}
 };
 
- //CANCIONES 3
+ //CANCIONES 3 Animals – Martin Garrix
 //______________________________________________________
 static const nota_cancion_t cancion3[] = {
             // nota , duración
@@ -684,42 +656,19 @@ static const nota_cancion_t cancion3[] = {
     {7, 1}, // 7 = si
     {8, 2}, // 8 = do2
 
-    {8, 1},
-    {7, 1},
-    {6, 1},
-    {5, 1},
-    {4, 1},
-    {3, 1},
-    {2, 1},
-    {1, 2},
-            // nota , duración
-    {1, 1}, // 1 = do , 1 = 250 ms 2 = 500 ms 3 = 750 ms 4 = 1000 ms
-    {3, 2},
-    {5, 1},
-    {7, 1},
-    {8, 1},
-
-    {8, 1},
-    {6, 1},
-    {4, 1},
-    {2, 1},
-    {1, 2},
-
-    {0, 0}
+ 
 };
 
  // BAJOS DE LAS CANCIONES
 //______________________________________________________
 static const uint8_t bajo1[] = {
-    1, 5, 1, 5,
-    1, 5, 1, 1,
-    0
+     1,1,2,3,4,4,5,6,6,6,7,7,1,6,1,5,2,6,3,6,
+     0
 };
 
 static const uint8_t bajo2[] = {
-    1, 5, 1, 5,
-    1, 5, 1, 1,
-    0
+6, 8, 9, 4, 4, 9, 5, 5, 9, 9, 9, 9,
+7,0 7, 9, 5, 5, 9, 6, 8, 0
 };
 
 static const uint8_t bajo3[] = {
@@ -949,14 +898,14 @@ static void reproducir_cancion(uint8_t numero)
         /*
          * Duración:
          *
-         * 1 = 250 ms
-         * 2 = 500 ms
-         * 3 = 750 ms
-         * 4 = 1000 ms
+         * 1 = 100 ms
+         * 2 = 200 ms
+         * 3 = 300 ms
+         * 4 = 400 ms
          */
         duracion =
             (uint16_t)
-            melodia[posicion].duracion * 250U;
+            melodia[posicion].duracion * 100U;
 
         /*
          * Esperar y permitir STOP.
@@ -1299,9 +1248,10 @@ int main(void)
 //______________________________________________________
     uart_enviar_texto(
         "\r\n"
-        "============================\r\n"
+        "____________________________\r\n"
+		"\r\n"
         "    PIANO ELECTRONICO       \r\n"
-        "============================\r\n"
+        "____________________________\r\n"
     );
 
     uart_enviar_texto(
@@ -1334,12 +1284,24 @@ int main(void)
 
     while (1) {
 
-        procesar_uart();  // UART tiene prioridad.
+        /*
+         * UART tiene prioridad.
+         */
+        procesar_uart();
 
+        /*
+         * MODO PIANO
+         */
         if (modo_actual == MODO_PIANO) {
+
             modo_piano();
         }
+
+        /*
+         * MODO CANCION
+         */
         else {
+
             reproducir_cancion(
                 cancion_actual
             );
