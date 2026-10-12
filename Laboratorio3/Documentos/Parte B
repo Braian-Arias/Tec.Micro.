@@ -1,94 +1,371 @@
-const int LDR = A0;
-const int POT = A1;
-const int IN1 = 4;
-const int IN2 = 5;
-const int ENA = 6;
+#ifndef F_CPU
+#define F_CPU 16000000UL
+#endif
 
-int iluminacion = 0;
-int posicion = 0;
+#include <avr/io.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
 
-// Setpoint inicial
-int setpoint = 500;
+// Pines del motor
+#define IN1 PD4
+#define IN2 PD5
+#define ENA PD6
 
-// Margen para evitar movimientos pequeños
-const int tolerancia = 30;
+// Configuracion del control
+#define TOLERANCIA 30
+#define LIMITE_CERRADO 50
+#define LIMITE_ABIERTO 970
 
-void setup() {
-  Serial.begin(9600);
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(ENA, OUTPUT);
+// Variables
+uint16_t iluminacion = 0;
+uint16_t posicion = 0;
+uint16_t setpoint = 500;
 
-  // Motor detenido al iniciar
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  analogWrite(ENA, 0);
-  Serial.println("Sistema iniciado");
-  Serial.println("Ingrese un setpoint entre 0 y 1023:");
+int16_t error = 0;
+uint8_t pwm = 0;
+
+const char *estado = "DETENIDO";
+
+// Para recibir el setpoint
+char entrada[12];
+uint8_t indice = 0;
+
+// --------------------------------------
+// CONFIGURAR ADC
+// --------------------------------------
+
+void ADC_Init(void)
+{
+    // Referencia AVcc (5 V)
+    ADMUX = (1 << REFS0);
+
+    // Habilitar ADC
+    // Prescaler 128: 125 kHz
+    ADCSRA = (1 << ADEN) |
+             (1 << ADPS2) |
+             (1 << ADPS1) |
+             (1 << ADPS0);
 }
 
-void loop() {
-   if (Serial.available() > 0) {
+// --------------------------------------
+// LEER CANAL ADC
+// --------------------------------------
 
-    int nuevoSetpoint = Serial.parseInt();
+uint16_t ADC_Read(uint8_t canal)
+{
+    // Seleccionar canal ADC0 o ADC1
+    ADMUX = (ADMUX & 0xF0) | (canal & 0x0F);
 
-    if (nuevoSetpoint >= 0 && nuevoSetpoint <= 1023) {
-      setpoint = nuevoSetpoint;
-      Serial.print("Nuevo setpoint: ");
-      Serial.println(setpoint);
+    // Iniciar conversion
+    ADCSRA |= (1 << ADSC);
+
+    // Esperar a que termine
+    while (ADCSRA & (1 << ADSC));
+
+    return ADC;
+}
+
+// --------------------------------------
+// CONFIGURAR PWM
+// --------------------------------------
+
+void PWM_Init(void)
+{
+    // D6 como salida
+    DDRD |= (1 << ENA);
+
+    // Timer0 Fast PWM, no inversor
+    // Salida OC0A = PD6
+    TCCR0A = (1 << COM0A1) |
+             (1 << WGM01) |
+             (1 << WGM00);
+
+    // Prescaler 64
+    TCCR0B = (1 << CS01) |
+             (1 << CS00);
+
+    OCR0A = 0;
+}
+// --------------------------------------
+// CONFIGURAR MOTOR
+// --------------------------------------
+void Motor_Init(void)
+{
+    DDRD |= (1 << IN1) | (1 << IN2);
+
+    PORTD &= ~((1 << IN1) | (1 << IN2));
+
+    PWM_Init();
+}
+// --------------------------------------
+// DETENER MOTOR
+// --------------------------------------
+void Motor_Detener(void)
+{
+    PORTD &= ~((1 << IN1) | (1 << IN2));
+    OCR0A = 0;
+    pwm = 0;
+    estado = "DETENIDO";
+}
+// --------------------------------------
+// ABRIR PERSIANA
+// --------------------------------------
+void Motor_Abrir(uint8_t velocidad)
+{
+    PORTD |= (1 << IN1);
+    PORTD &= ~(1 << IN2);
+    OCR0A = velocidad;
+    pwm = velocidad;
+    estado = "ABRIENDO";
+}
+// --------------------------------------
+// CERRAR PERSIANA
+// --------------------------------------
+void Motor_Cerrar(uint8_t velocidad)
+{
+    PORTD &= ~(1 << IN1);
+    PORTD |= (1 << IN2);
+    OCR0A = velocidad;
+    pwm = velocidad;
+    estado = "CERRANDO";
+}
+// --------------------------------------
+// CONFIGURAR UART
+// --------------------------------------
+void UART_Init(void)
+{
+    // 9600 baudios con F_CPU = 16 MHz
+    UBRR0H = 0;
+    UBRR0L = 103;
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    // 8 bits, sin paridad, 1 stop
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+// --------------------------------------
+// ENVIAR CARACTER
+// --------------------------------------
+void UART_EnviarChar(char dato)
+{
+    while (!(UCSR0A & (1 << UDRE0)));
+    UDR0 = dato;
+}
+// --------------------------------------
+// ENVIAR TEXTO
+// --------------------------------------
+void UART_EnviarTexto(const char *texto)
+{
+    while (*texto)
+    {
+        UART_EnviarChar(*texto++);
     }
-    else {
+}
 
-      Serial.println("Setpoint fuera de rango");
+// --------------------------------------
+// ENVIAR NUMERO
+// --------------------------------------
+void UART_EnviarNumero(uint32_t numero)
+{
+    char buffer[12];
+    ultoa(numero, buffer, 10);
+    UART_EnviarTexto(buffer);
+}
+// --------------------------------------
+// RECIBIR SETPOINT
+// --------------------------------------
+void UART_RecibirSetpoint(void)
+{
+    // Revisar si llego un caracter
+    if (UCSR0A & (1 << RXC0))
+    {
+        char c = UDR0;
+        if (c == '\n' || c == '\r')
+        {
+            if (indice > 0)
+            {
+                entrada[indice] = '\0';
+                uint8_t valido = 1;
+                // Verificar que sean numeros
+                for (uint8_t i = 0; i < indice; i++)
+                {
+                    if (entrada[i] < '0' ||
+                        entrada[i] > '9')
+                    {
+                        valido = 0;
+                    }
+                }
+
+                if (valido)
+                {
+                    unsigned long nuevo = strtoul(
+                        entrada, NULL, 10
+                    );
+                    if (nuevo <= 1023)
+                    {
+                        setpoint = (uint16_t)nuevo;
+
+                        UART_EnviarTexto(
+                            "Nuevo setpoint: "
+                        );
+
+                        UART_EnviarNumero(setpoint);
+                        UART_EnviarTexto("\r\n");
+                    }
+                    else
+                    {
+                        UART_EnviarTexto(
+                            "Setpoint fuera de rango\r\n"
+                        );
+                    }
+                }
+                else
+                {
+                    UART_EnviarTexto(
+                        "Ingrese un numero valido\r\n"
+                    );
+                }
+            }
+            indice = 0;
+        }
+        else
+        {
+            if (indice < sizeof(entrada) - 1)
+            {
+                entrada[indice++] = c;
+            }
+            else
+            {
+                indice = 0;
+                UART_EnviarTexto(
+                    "Entrada demasiado larga\r\n"
+                );
+            }
+        }
     }
-    // Limpiar datos restantes del buffer
-    while (Serial.available() > 0) {
-      Serial.read();
+}
+// --------------------------------------
+// CONTROL DE ILUMINACION
+// --------------------------------------
+void Control_Iluminacion(void)
+{
+    error = (int16_t)setpoint -
+            (int16_t)iluminacion;
+    int16_t diferencia = error;
+    if (diferencia < 0)
+    {
+        diferencia = -diferencia;
     }
-  }
+    // PWM proporcional: Kp = 1.5
+    uint16_t calculoPWM =
+        ((uint16_t)diferencia * 3) / 2;
+    // Saturar a 255
+    if (calculoPWM > 255)
+    {
+        calculoPWM = 255;
+    }
+    pwm = (uint8_t)calculoPWM;
+    // Dentro de la tolerancia
+    if (diferencia <= TOLERANCIA)
+    {
+        Motor_Detener();
+    }
+    else if (error > 0)
+    {
+        // Falta luz: abrir persiana
+        if (posicion < LIMITE_ABIERTO)
+        {
+            Motor_Abrir(pwm);
+        }
+        else
+        {
+            Motor_Detener();
+            estado = "LIMITE_ABIERTO";
+        }
+    }
+    else
+    {
+        // Demasiada luz: cerrar
+        if (posicion > LIMITE_CERRADO)
+        {
+            Motor_Cerrar(pwm);
+        }
+        else
+        {
+            Motor_Detener();
+            estado = "LIMITE_CERRADO";
+        }
+    }
+}
+// --------------------------------------
+// ENVIAR DATOS PARA PYTHON
+// --------------------------------------
+void Enviar_Datos(uint32_t tiempo)
+{
+    // Formato CSV:
+    // Tiempo,Setpoint,LDR,Posicion,PWM,Estado
+    UART_EnviarNumero(tiempo);
+    UART_EnviarChar(',');
+    UART_EnviarNumero(setpoint);
+    UART_EnviarChar(',');
+    UART_EnviarNumero(iluminacion);
+    UART_EnviarChar(',');
+    UART_EnviarNumero(posicion);
+    UART_EnviarChar(',');
+    UART_EnviarNumero(pwm);
+    UART_EnviarChar(',');
+    UART_EnviarTexto(estado);
+    UART_EnviarTexto("\r\n");
+}
+// --------------------------------------
+// PROGRAMA PRINCIPAL
+// --------------------------------------
+int main(void)
+{
+    ADC_Init();
+    Motor_Init();
+    UART_Init();
+    Motor_Detener();
+    UART_EnviarTexto(
+        "Sistema de control de iluminacion\r\n"
+    );
+    UART_EnviarTexto(
+        "Ingrese setpoint entre 0 y 1023\r\n"
+    );
+    UART_EnviarTexto(
+        "Tiempo,Setpoint,LDR,Posicion,PWM,Estado\r\n"
+    );
+    TCCR1A = 0;
+    TCCR1B = (1 << WGM12) |
+             (1 << CS11) |
+             (1 << CS10);
+    OCR1A = 249;
+    TCNT1 = 0;
+    uint32_t tiempo = 0;
+    uint16_t contador = 0;
+    while (1)
+    {
+        // Revisar recepcion UART
+        UART_RecibirSetpoint();
+        // Comprobar evento de 1 ms
+        if (TIFR1 & (1 << OCF1A))
+        {
+            // Limpiar bandera
+            TIFR1 = (1 << OCF1A);
+            tiempo++;
+            contador++;
+            // Control cada 500 ms
+            if (contador >= 500)
+            {
+                contador = 0;
 
-  // --------------------------------------------------
-  // Leer sensores
-  // --------------------------------------------------
-
-  iluminacion = analogRead(LDR);
-  posicion = analogRead(POT);
-
-  // --------------------------------------------------
-  // Mostrar valores
-  // --------------------------------------------------
-
-  Serial.print("Setpoint: ");
-  Serial.print(setpoint);
-  Serial.print(" | Luz: ");
-  Serial.print(iluminacion);
-  Serial.print(" | Posicion: ");
-  Serial.print(posicion);
-
-  // ------------------------------
-  // CONTROL
-  // ------------------------------
-
-  if (iluminacion < setpoint - tolerancia) {
-    // Falta luz -> abrir persiana
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN2, LOW);
-    analogWrite(ENA, 180);
-    Serial.println(" | Motor: ABRIENDO");
-  }
-  else if (iluminacion > setpoint + tolerancia) {
-    // Hay demasiada luz -> cerrar persiana
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, HIGH);
-    analogWrite(ENA, 180);
-    Serial.println(" | Motor: CERRANDO");
-  }
-  else {
-    // Iluminacion cercana al setpoint
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, LOW);
-    analogWrite(ENA, 0);
-    Serial.println(" | Motor: DETENIDO");
-  }
-  delay(500);
+                // Leer entradas analogicas
+                iluminacion = ADC_Read(0);
+                posicion = ADC_Read(1);
+                // Ejecutar control
+                Control_Iluminacion();
+                // Enviar valores por UART
+                Enviar_Datos(tiempo);
+            }
+        }
+    }
 }
