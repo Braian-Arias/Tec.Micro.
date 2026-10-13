@@ -3,114 +3,81 @@
 #endif
 
 #include <avr/io.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stdlib.h>
 
-// Pines del motor
+// ==========================================
+// CONFIGURACION
+// ==========================================
+
 #define IN1 PD4
 #define IN2 PD5
 #define ENA PD6
 
-// Configuracion del control
 #define TOLERANCIA 30
 #define LIMITE_CERRADO 50
 #define LIMITE_ABIERTO 970
 
+#define PWM_MINIMO 90
+
+#define BAUD 9600UL
+#define UBRR_VAL ((F_CPU / (16UL * BAUD)) - 1)
+
 // Variables
 uint16_t iluminacion = 0;
 uint16_t posicion = 0;
-uint16_t setpoint = 500;
 
+// SETPOINT INICIAL = 150
+uint16_t setpoint = 150;
 int16_t error = 0;
 uint8_t pwm = 0;
-
 const char *estado = "DETENIDO";
-
-// Para recibir el setpoint
 char entrada[12];
 uint8_t indice = 0;
-
-// --------------------------------------
-// CONFIGURAR ADC
-// --------------------------------------
-
+uint8_t entradaInvalida = 0;
+// ==========================================
+// ADC
+// ==========================================
 void ADC_Init(void)
 {
-    // Referencia AVcc (5 V)
     ADMUX = (1 << REFS0);
 
-    // Habilitar ADC
-    // Prescaler 128: 125 kHz
     ADCSRA = (1 << ADEN) |
              (1 << ADPS2) |
              (1 << ADPS1) |
              (1 << ADPS0);
 }
-
-// --------------------------------------
-// LEER CANAL ADC
-// --------------------------------------
-
 uint16_t ADC_Read(uint8_t canal)
 {
-    // Seleccionar canal ADC0 o ADC1
-    ADMUX = (ADMUX & 0xF0) | (canal & 0x0F);
-
-    // Iniciar conversion
+    ADMUX = (1 << REFS0) | (canal & 0x07);
     ADCSRA |= (1 << ADSC);
-
-    // Esperar a que termine
     while (ADCSRA & (1 << ADSC));
-
     return ADC;
 }
-
-// --------------------------------------
-// CONFIGURAR PWM
-// --------------------------------------
-
-void PWM_Init(void)
+// ==========================================
+// MOTOR Y PWM
+// ==========================================
+void Motor_Init(void)
 {
-    // D6 como salida
-    DDRD |= (1 << ENA);
-
-    // Timer0 Fast PWM, no inversor
-    // Salida OC0A = PD6
+    DDRD |= (1 << IN1) |
+            (1 << IN2) |
+            (1 << ENA);
+    PORTD &= ~((1 << IN1) | (1 << IN2));
+    // Timer0 Fast PWM
     TCCR0A = (1 << COM0A1) |
              (1 << WGM01) |
              (1 << WGM00);
-
-    // Prescaler 64
     TCCR0B = (1 << CS01) |
              (1 << CS00);
-
     OCR0A = 0;
 }
-// --------------------------------------
-// CONFIGURAR MOTOR
-// --------------------------------------
-void Motor_Init(void)
-{
-    DDRD |= (1 << IN1) | (1 << IN2);
-
-    PORTD &= ~((1 << IN1) | (1 << IN2));
-
-    PWM_Init();
-}
-// --------------------------------------
-// DETENER MOTOR
-// --------------------------------------
 void Motor_Detener(void)
 {
-    PORTD &= ~((1 << IN1) | (1 << IN2));
     OCR0A = 0;
+    PORTD &= ~((1 << IN1) | (1 << IN2));
     pwm = 0;
     estado = "DETENIDO";
 }
-// --------------------------------------
-// ABRIR PERSIANA
-// --------------------------------------
 void Motor_Abrir(uint8_t velocidad)
 {
     PORTD |= (1 << IN1);
@@ -119,9 +86,6 @@ void Motor_Abrir(uint8_t velocidad)
     pwm = velocidad;
     estado = "ABRIENDO";
 }
-// --------------------------------------
-// CERRAR PERSIANA
-// --------------------------------------
 void Motor_Cerrar(uint8_t velocidad)
 {
     PORTD &= ~(1 << IN1);
@@ -130,29 +94,22 @@ void Motor_Cerrar(uint8_t velocidad)
     pwm = velocidad;
     estado = "CERRANDO";
 }
-// --------------------------------------
-// CONFIGURAR UART
-// --------------------------------------
+// ==========================================
+// UART
+// ==========================================
 void UART_Init(void)
 {
-    // 9600 baudios con F_CPU = 16 MHz
-    UBRR0H = 0;
-    UBRR0L = 103;
+    UBRR0H = (uint8_t)(UBRR_VAL >> 8);
+    UBRR0L = (uint8_t)UBRR_VAL;
+    UCSR0A = 0;
     UCSR0B = (1 << RXEN0) | (1 << TXEN0);
-    // 8 bits, sin paridad, 1 stop
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
 }
-// --------------------------------------
-// ENVIAR CARACTER
-// --------------------------------------
 void UART_EnviarChar(char dato)
 {
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = dato;
 }
-// --------------------------------------
-// ENVIAR TEXTO
-// --------------------------------------
 void UART_EnviarTexto(const char *texto)
 {
     while (*texto)
@@ -160,74 +117,39 @@ void UART_EnviarTexto(const char *texto)
         UART_EnviarChar(*texto++);
     }
 }
-
-// --------------------------------------
-// ENVIAR NUMERO
-// --------------------------------------
 void UART_EnviarNumero(uint32_t numero)
 {
     char buffer[12];
     ultoa(numero, buffer, 10);
     UART_EnviarTexto(buffer);
 }
-// --------------------------------------
+// ==========================================
 // RECIBIR SETPOINT
-// --------------------------------------
+// ==========================================
 void UART_RecibirSetpoint(void)
 {
-    // Revisar si llego un caracter
-    if (UCSR0A & (1 << RXC0))
+    while (UCSR0A & (1 << RXC0))
     {
         char c = UDR0;
         if (c == '\n' || c == '\r')
         {
-            if (indice > 0)
+            if (indice > 0 || entradaInvalida)
             {
-                entrada[indice] = '\0';
-                uint8_t valido = 1;
-                // Verificar que sean numeros
-                for (uint8_t i = 0; i < indice; i++)
+                if (!entradaInvalida && indice > 0)
                 {
-                    if (entrada[i] < '0' ||
-                        entrada[i] > '9')
-                    {
-                        valido = 0;
-                    }
-                }
-
-                if (valido)
-                {
-                    unsigned long nuevo = strtoul(
-                        entrada, NULL, 10
-                    );
+                    entrada[indice] = '\0';
+                    unsigned long nuevo =
+                        strtoul(entrada, 0, 10);
                     if (nuevo <= 1023)
                     {
                         setpoint = (uint16_t)nuevo;
-
-                        UART_EnviarTexto(
-                            "Nuevo setpoint: "
-                        );
-
-                        UART_EnviarNumero(setpoint);
-                        UART_EnviarTexto("\r\n");
-                    }
-                    else
-                    {
-                        UART_EnviarTexto(
-                            "Setpoint fuera de rango\r\n"
-                        );
                     }
                 }
-                else
-                {
-                    UART_EnviarTexto(
-                        "Ingrese un numero valido\r\n"
-                    );
-                }
+                indice = 0;
+                entradaInvalida = 0;
             }
-            indice = 0;
         }
-        else
+        else if (c >= '0' && c <= '9')
         {
             if (indice < sizeof(entrada) - 1)
             {
@@ -235,43 +157,40 @@ void UART_RecibirSetpoint(void)
             }
             else
             {
-                indice = 0;
-                UART_EnviarTexto(
-                    "Entrada demasiado larga\r\n"
-                );
+                entradaInvalida = 1;
             }
+        }
+        else
+        {
+            entradaInvalida = 1;
         }
     }
 }
-// --------------------------------------
+// ==========================================
 // CONTROL DE ILUMINACION
-// --------------------------------------
+// ==========================================
 void Control_Iluminacion(void)
 {
     error = (int16_t)setpoint -
             (int16_t)iluminacion;
-    int16_t diferencia = error;
-    if (diferencia < 0)
-    {
-        diferencia = -diferencia;
-    }
-    // PWM proporcional: Kp = 1.5
-    uint16_t calculoPWM =
-        ((uint16_t)diferencia * 3) / 2;
-    // Saturar a 255
-    if (calculoPWM > 255)
-    {
-        calculoPWM = 255;
-    }
-    pwm = (uint8_t)calculoPWM;
-    // Dentro de la tolerancia
+    int16_t diferencia = abs(error);
     if (diferencia <= TOLERANCIA)
     {
         Motor_Detener();
+        return;
     }
-    else if (error > 0)
+
+    // PWM proporcional Kp = 1.5
+    uint16_t calculoPWM =
+        ((uint16_t)diferencia * 3) / 2;
+    if (calculoPWM > 255)
+        calculoPWM = 255;
+    if (calculoPWM < PWM_MINIMO)
+        calculoPWM = PWM_MINIMO;
+    pwm = (uint8_t)calculoPWM;
+    if (error > 0)
     {
-        // Falta luz: abrir persiana
+        // Falta luz: abrir
         if (posicion < LIMITE_ABIERTO)
         {
             Motor_Abrir(pwm);
@@ -284,7 +203,7 @@ void Control_Iluminacion(void)
     }
     else
     {
-        // Demasiada luz: cerrar
+        // Sobra luz: cerrar
         if (posicion > LIMITE_CERRADO)
         {
             Motor_Cerrar(pwm);
@@ -296,13 +215,11 @@ void Control_Iluminacion(void)
         }
     }
 }
-// --------------------------------------
-// ENVIAR DATOS PARA PYTHON
-// --------------------------------------
+// ==========================================
+// ENVIAR DATOS CSV
+// ==========================================
 void Enviar_Datos(uint32_t tiempo)
 {
-    // Formato CSV:
-    // Tiempo,Setpoint,LDR,Posicion,PWM,Estado
     UART_EnviarNumero(tiempo);
     UART_EnviarChar(',');
     UART_EnviarNumero(setpoint);
@@ -316,9 +233,9 @@ void Enviar_Datos(uint32_t tiempo)
     UART_EnviarTexto(estado);
     UART_EnviarTexto("\r\n");
 }
-// --------------------------------------
-// PROGRAMA PRINCIPAL
-// --------------------------------------
+// ==========================================
+// MAIN
+// ==========================================
 int main(void)
 {
     ADC_Init();
@@ -328,44 +245,42 @@ int main(void)
     UART_EnviarTexto(
         "Sistema de control de iluminacion\r\n"
     );
+
     UART_EnviarTexto(
-        "Ingrese setpoint entre 0 y 1023\r\n"
+        "Setpoint inicial: 150\r\n"
     );
+
     UART_EnviarTexto(
         "Tiempo,Setpoint,LDR,Posicion,PWM,Estado\r\n"
     );
+    // Timer1: base de tiempo de 1 ms
     TCCR1A = 0;
     TCCR1B = (1 << WGM12) |
              (1 << CS11) |
              (1 << CS10);
     OCR1A = 249;
     TCNT1 = 0;
+    TIFR1 = (1 << OCF1A);
     uint32_t tiempo = 0;
     uint16_t contador = 0;
     while (1)
     {
-        // Revisar recepcion UART
         UART_RecibirSetpoint();
-        // Comprobar evento de 1 ms
         if (TIFR1 & (1 << OCF1A))
         {
-            // Limpiar bandera
             TIFR1 = (1 << OCF1A);
             tiempo++;
             contador++;
-            // Control cada 500 ms
             if (contador >= 500)
             {
                 contador = 0;
-
-                // Leer entradas analogicas
                 iluminacion = ADC_Read(0);
                 posicion = ADC_Read(1);
-                // Ejecutar control
                 Control_Iluminacion();
-                // Enviar valores por UART
                 Enviar_Datos(tiempo);
             }
         }
     }
+
+    return 0;
 }
