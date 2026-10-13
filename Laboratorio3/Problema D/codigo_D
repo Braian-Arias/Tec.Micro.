@@ -1,0 +1,1407 @@
+// Lab 3 - Problema D musica de piano 
+/*
+ * GccApplication3.c
+ *
+ * Created: 4/10/2026 23:37:16
+ * Author : User
+ */ 
+/* - PROBLEMA D - PIANO ELECTRONICO:
+ *
+ * - 8 botones = 8 notas musicales
+ * - LCD 16x2 mediante I2C
+ * - UART a 9600 baudios
+ * - 2 buzzers pasivos con 2N2222
+ * - Timer1 = buzzer de melodía
+ * - Timer2 = buzzer de bajo
+ * - 3 canciones
+ * - Modo PIANO y modo CANCION
+ *
+ * Comandos UART:
+ * C1 -> Canción 1
+ * C2 -> Canción 2
+ * C3 -> Canción 3
+ * S  -> Detener canción
+ * P  -> Modo piano
+ */
+/* Botones:
+ * S1 -> PD2
+ * S2 -> PD3
+ * S3 -> PD4
+ * S4 -> PD5
+ * S5 -> PD6
+ * S6 -> PD7
+ * S7 -> PB0
+ * S8 -> PB1
+ * Botón presionado = 0
+ */
+
+{
+#define F_CPU 16000000UL
+
+#include <avr/interrupt.h>
+#include <avr/io.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <util/delay.h>
+
+ //UART
+//______________________________________________________
+#define VELOCIDAD_UART 9600UL
+#define VALOR_UBRR ((F_CPU / (16UL * VELOCIDAD_UART)) - 1UL)
+
+ //LCD I2C
+//______________________________________________________
+#define DIRECCION_LCD 0x27
+#define BIT_LUZ_LCD 0x08
+#define BIT_ENABLE_LCD 0x04
+#define BIT_RS_LCD 0x01
+
+static uint8_t lcd_disponible = 0;
+
+ //Notas musicales
+//______________________________________________________
+#define NOTA_SILENCIO 0
+
+#define NOTA_DO   262
+#define NOTA_DO_S 277  // DO#
+#define NOTA_RE   294
+#define NOTA_RE_S 311  // RE#
+#define NOTA_MI   330
+#define NOTA_FA   349
+#define NOTA_FA_S 370  // FA#
+#define NOTA_SOL  392
+#define NOTA_SOL_S 415 // SOL#
+#define NOTA_LA   440
+#define NOTA_LA_S 466  // LA#
+#define NOTA_SI   494
+#define NOTA_DO2  523
+#define NOTA_DO2_S 554 // DO# agudo
+#define NOTA_RE2  587  // RE agudo
+#define NOTA_RE2_S 622 // RE# agudo
+#define NOTA_MI2  659  // MI agudo
+}
+static const uint16_t frecuencias_notas[17] = {
+	0,          // Índice 0: sin nota
+	NOTA_DO,    // 1
+	NOTA_RE,    // 2
+	NOTA_MI,    // 3
+	NOTA_FA,    // 4
+	NOTA_SOL,   // 5
+	NOTA_LA,    // 6
+	NOTA_SI,    // 7
+	NOTA_DO2,   // 8
+	NOTA_SILENCIO, // 9: silencio
+	NOTA_DO_S,  // 10
+	NOTA_RE_S,  // 11
+	NOTA_FA_S,  // 12
+	NOTA_SOL_S, // 13
+	NOTA_LA_S,  // 14
+	NOTA_DO2_S, // 15
+	NOTA_RE2    // 16
+};
+
+//Nombres para mostrar en LCD
+static const char *nombres_notas[17] = {
+	"",       // 0
+	"DO",     // 1
+	"RE",     // 2
+	"MI",     // 3
+	"FA",     // 4
+	"SOL",    // 5
+	"LA",     // 6
+	"SI",     // 7
+	"DO5",    // 8
+	"MUTE",   // 9
+	"DO#",    // 10
+	"RE#",    // 11
+	"FA#",    // 12
+	"SOL#",   // 13
+	"LA#",    // 14
+	"DO#5",   // 15
+	"RE5"     // 16
+};
+
+//modos del codigo
+typedef enum {
+    MODO_PIANO,
+    MODO_CANCION
+} modo_sistema_t;
+
+{
+static volatile modo_sistema_t modo_actual = MODO_PIANO;
+
+/* Canción seleccionada */
+static volatile uint8_t cancion_actual = 0;
+
+#define BUZZER_MELODIA_DDR  DDRB
+#define BUZZER_MELODIA_PORT PORTB
+#define BUZZER_MELODIA_PIN  PB3
+
+#define BUZZER_BAJO_DDR     DDRB
+#define BUZZER_BAJO_PORT    PORTB
+#define BUZZER_BAJO_PIN     PB5
+
+static volatile uint8_t buzzer_bajo_activo = 0;
+}
+ //I2C
+//______________________________________________________
+static void i2c_iniciar(void)
+{
+    TWSR = 0;
+    TWBR = 72;       // Aproximadamente 100 kHz 
+    TWCR = (1 << TWEN);
+}
+
+static uint8_t i2c_esperar(void)
+{
+    uint16_t intentos = 60000;
+
+    while (!(TWCR & (1 << TWINT)) && intentos > 0) {
+        intentos--;
+    }
+
+    return intentos > 0;
+}
+
+static uint8_t i2c_enviar_byte(uint8_t direccion, uint8_t dato)
+{
+    /* START */
+    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+
+    if (!i2c_esperar()) {
+        return 0;
+    }
+
+    /* Dirección + escritura */
+    TWDR = (uint8_t)(direccion << 1);
+
+    TWCR = (1 << TWINT) | (1 << TWEN);
+
+    if (!i2c_esperar()) {
+        return 0;
+    }
+
+    if ((TWSR & 0xF8) != 0x18) {
+        TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+        return 0;
+    }
+
+    /* Dato */
+    TWDR = dato;
+
+    TWCR = (1 << TWINT) | (1 << TWEN);
+
+    if (!i2c_esperar()) {
+        return 0;
+    }
+
+    /* STOP */
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+
+    return 1;
+}
+ //LCD
+//______________________________________________________
+static uint8_t lcd_expansor(uint8_t dato)
+{
+    return i2c_enviar_byte(
+        DIRECCION_LCD,
+        (uint8_t)(dato | BIT_LUZ_LCD)
+    );
+}
+
+static void lcd_pulso_enable(uint8_t dato)
+{
+    lcd_expansor((uint8_t)(dato | BIT_ENABLE_LCD));
+
+    _delay_us(1);
+
+    lcd_expansor((uint8_t)(dato & ~BIT_ENABLE_LCD));
+
+    _delay_us(50);
+}
+
+static void lcd_enviar_nibble(uint8_t nibble, uint8_t modo_dato)
+{
+    uint8_t salida;
+
+    salida = (uint8_t)((nibble & 0x0F) << 4);
+
+    if (modo_dato) {
+        salida |= BIT_RS_LCD;
+    }
+
+    lcd_expansor(salida);
+
+    lcd_pulso_enable(salida);
+}
+
+static void lcd_enviar_byte(uint8_t dato, uint8_t modo_dato)
+{
+    if (!lcd_disponible) {
+        return;
+    }
+
+    lcd_enviar_nibble((uint8_t)(dato >> 4), modo_dato);
+
+    lcd_enviar_nibble((uint8_t)(dato & 0x0F), modo_dato);
+}
+
+static void lcd_comando(uint8_t comando)
+{
+    lcd_enviar_byte(comando, 0);
+}
+
+static void lcd_caracter(char caracter)
+{
+    lcd_enviar_byte((uint8_t)caracter, 1);
+}
+
+static void lcd_iniciar(void)
+{
+    _delay_ms(50);
+
+    lcd_disponible = lcd_expansor(0);
+
+    if (!lcd_disponible) {
+        return;
+    }
+
+    /* Secuencia inicial */
+    lcd_enviar_nibble(0x03, 0);
+    _delay_ms(5);
+    lcd_enviar_nibble(0x03, 0);
+    _delay_us(150);
+    lcd_enviar_nibble(0x03, 0);
+    _delay_ms(2);
+    lcd_enviar_nibble(0x02, 0);
+    _delay_ms(2);
+    /* LCD 4 bits, 2 líneas */
+    lcd_comando(0x28);
+    _delay_ms(2);
+    /* Display ON, cursor OFF */
+    lcd_comando(0x0C);
+    _delay_ms(2);
+    /* Incrementar posición */
+    lcd_comando(0x06);
+    _delay_ms(2);
+    /* Limpiar pantalla */
+    lcd_comando(0x01);
+    _delay_ms(2);
+}
+
+static void lcd_posicion(uint8_t fila, uint8_t columna)
+{
+    uint8_t posicion;
+
+    if (fila == 0) {
+        posicion = columna;
+    } else {
+        posicion = (uint8_t)(0x40 + columna);
+    }
+
+    lcd_comando((uint8_t)(0x80 | posicion));
+}
+
+static void lcd_texto(const char *texto)
+{
+    while (*texto != '\0') {
+        lcd_caracter(*texto);
+        texto++;
+    }
+}
+
+static void lcd_numero(uint16_t numero)
+{
+    char texto_numero[6];
+
+    utoa(numero, texto_numero, 10);
+
+    lcd_texto(texto_numero);
+}
+
+static void lcd_limpiar(void)
+{
+    lcd_comando(0x01);
+    _delay_ms(2);
+}
+
+static void lcd_limpiar_linea(uint8_t fila)
+{
+    uint8_t columna;
+
+    lcd_posicion(fila, 0);
+
+    for (columna = 0; columna < 16; columna++) {
+        lcd_caracter(' ');
+    }
+}
+
+ //UART
+//______________________________________________________
+
+static void uart_iniciar(void)
+{
+    UBRR0H = (uint8_t)(VALOR_UBRR >> 8);
+    UBRR0L = (uint8_t)VALOR_UBRR;
+
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+static void uart_enviar_caracter(char caracter)
+{
+    while (!(UCSR0A & (1 << UDRE0))) {
+        /* Esperar */
+    }
+
+    UDR0 = caracter;
+}
+
+static void uart_enviar_texto(const char *texto)
+{
+    while (*texto != '\0') {
+        uart_enviar_caracter(*texto);
+        texto++;
+    }
+}
+
+static uint8_t uart_hay_dato(void)
+{
+    return (UCSR0A & (1 << RXC0)) != 0;
+}
+
+static char uart_recibir_caracter(void)
+{
+    return UDR0;
+}
+
+ //botones
+//______________________________________________________
+static void botones_iniciar(void)
+{
+    DDRD &= ~(
+        (1 << DDD2) |
+        (1 << DDD3) |
+        (1 << DDD4) |
+        (1 << DDD5) |
+        (1 << DDD6) |
+        (1 << DDD7)
+    );
+
+    PORTD |= (
+        (1 << PORTD2) |
+        (1 << PORTD3) |
+        (1 << PORTD4) |
+        (1 << PORTD5) |
+        (1 << PORTD6) |
+        (1 << PORTD7)
+    );
+
+    DDRB &= ~(
+        (1 << DDB0) |
+        (1 << DDB1)
+    );
+
+    PORTB |= (
+        (1 << PORTB0) |
+        (1 << PORTB1)
+    );
+}
+
+static uint8_t leer_boton(void)
+{
+    if (!(PIND & (1 << PIND2))) {
+        return 1; //DO
+    }
+
+    if (!(PIND & (1 << PIND3))) {
+        return 2; //RE
+    }
+
+    if (!(PIND & (1 << PIND4))) {
+        return 3; //MI
+    }
+
+    if (!(PIND & (1 << PIND5))) {
+        return 4; //FA
+    }
+
+    if (!(PIND & (1 << PIND6))) {
+        return 5; //SOL
+    }
+
+    if (!(PIND & (1 << PIND7))) {
+        return 6; //LA
+    }
+
+    if (!(PINB & (1 << PINB0))) {
+        return 7; //SI
+    }
+
+    if (!(PINB & (1 << PINB1))) {
+        return 8; //DO5
+    }
+
+    return 0;
+}
+
+ // TIMER2 - BUZZER MELODIA
+//______________________________________________________
+
+/*
+ * Timer2 funciona en CTC.
+ *
+ * OCR2A se calcula para obtener aproximadamente:
+ *
+ * f = F_CPU / (2 * prescaler * (OCR2A + 1))
+ *
+ * Se utiliza prescaler 128.
+ */
+
+static void buzzer_melodia_detener(void)
+{
+    TCCR2A = 0;
+    TCCR2B = 0;
+
+    PORTB &= ~(1 << BUZZER_MELODIA_PIN);
+}
+
+static void buzzer_melodia_frecuencia(uint16_t frecuencia)
+{
+    uint32_t valor;
+  if (frecuencia == 0) {
+	  buzzer_melodia_detener();
+	  return;
+  }
+
+  valor = ((uint32_t)F_CPU / (2UL * 128UL * frecuencia)) - 1UL;
+
+  if (valor > 255UL) valor = 255UL;
+
+  DDRB |= (1<<DDB3);
+  TCNT2 = 0;
+  OCR2A = (uint8_t)valor;
+  TCCR2A = (1<<COM2A0) | (1<<WGM21);
+  TCCR2B = (1<<CS22) | (1<<CS20);
+}
+
+ // TIMER1 - BUZZER BAJO
+//______________________________________________________
+
+/*
+ * Timer1 genera una interrupción cada medio período.
+ *
+ * En cada interrupción se cambia manualmente PB5.
+ */
+
+static void buzzer_bajo_detener(void)
+{
+    TCCR1A = 0;
+    TCCR1B = 0;
+
+    TIMSK1 = 0;
+
+    PORTB &= ~(1 << BUZZER_BAJO_PIN);
+
+    buzzer_bajo_activo = 0;
+}
+
+static void buzzer_bajo_frecuencia(uint16_t frecuencia)
+{
+    uint32_t valor;
+
+    if (frecuencia == 0) {
+        buzzer_bajo_detener();
+        return;
+    }
+
+    valor =
+        ((uint32_t)F_CPU /
+        (2UL * 64UL * frecuencia)) - 1UL;
+
+    if (valor > 65535UL) {
+        valor = 65535UL;
+    }
+
+    DDRB |= (1 << BUZZER_BAJO_PIN);
+
+    TCNT1 = 0;
+
+    OCR1A = (uint16_t)valor;
+
+    TCCR1A = 0;
+
+    TCCR1B =
+        (1 << WGM12) |
+        (1 << CS11) |
+        (1 << CS10);
+
+    TIMSK1 =
+        (1 << OCIE1A);
+
+    buzzer_bajo_activo = 1;
+}
+
+ // INTERRUPCION TIMER1
+//______________________________________________________
+ISR(TIMER1_COMPA_vect)
+{
+    if (buzzer_bajo_activo) {
+
+        PORTB ^= (1 << BUZZER_BAJO_PIN);
+    }
+}
+
+ // SONIDO
+//______________________________________________________
+static void sonido_iniciar(void)
+{
+    DDRB |=
+        (1 << BUZZER_MELODIA_PIN) |
+        (1 << BUZZER_BAJO_PIN);
+
+    buzzer_melodia_detener();
+
+    buzzer_bajo_detener();
+
+    sei();
+}
+
+static void detener_sonido(void)
+{
+    buzzer_melodia_detener();
+
+    buzzer_bajo_detener();
+}
+
+ // Reproduce una nota en modo piano se utiliza solamente el buzzer de melodía.
+//______________________________________________________
+static void reproducir_nota(uint8_t nota)
+{
+    if (nota == 0 || nota > 17) {
+        detener_sonido();
+        return;
+    }
+
+    buzzer_melodia_frecuencia(
+        frecuencias_notas[nota]
+    );
+
+    buzzer_bajo_detener();
+}
+   
+ //CANCIONES
+//______________________________________________________
+/*
+ * Cada elemento contiene:
+ *
+ * nota
+ * duración
+ *
+ * Duraciones:
+ *
+ * 1 = 250 ms
+ * 2 = 500 ms
+ * 3 = 750 ms
+ * 4 = 1000 ms
+ *
+ * 0 = fin de canción
+ */
+
+typedef struct {
+    uint8_t nota;
+    uint8_t duracion;
+} nota_cancion_t;
+
+ //ejemplo
+//______________________________________________________
+//           nota , duración
+//{1, 1}, // 1 = do , 1 = 100 ms
+//{2, 2}, // 2 = re , 2 = 200 ms
+//{3, 3}, // 3 = mi , 3 = 300 ms
+//{4, 4}, // 4 = fa , 4 = 400 ms
+//{5, 1}, // 5 = sol
+//{6, 1}, // 6 = la
+//{7, 1}, // 7 = si
+//{8, 2}, // 8 = do2
+//{9, 2}, // 9 = mute
+	
+ //CANCIONES 1 "Underground Theme" Super Mario Bros.
+//______________________________________________________
+static const nota_cancion_t cancion1[] = {
+      // Frase 1: Bajo inicial
+      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
+      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
+      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
+    
+	  // Entra melodía
+	  {8, 1}, {14, 1}, {5, 2}, {11, 2}, {6, 2}, {14, 2},
+		  
+      // Frase 2: Descenso 
+      {11, 1}, {2, 1}, {10, 1}, {1, 1}, {9, 1},
+      {11, 1}, {2, 1}, {13, 1}, {5, 1}, {9, 1},
+      {10, 1}, {1, 1}, {12, 1}, {4, 1}, {9, 1},
+      {3, 1}, {14, 1}, {6, 1}, {13, 1},
+      
+      // Frase 3: Interludio Rítmico veloz
+      {5, 1}, {12, 1}, {4, 1}, {3, 1}, {11, 1}, {2, 1}, {10, 1}, {1, 1},
+      {12, 1}, {4, 1}, {3, 1}, {11, 1}, {2, 1}, {10, 1}, {1, 1}, {7, 1}, {14, 1}, {6, 1}, {13, 1}, {5, 1},
+      
+      // Frase 4: Salida
+      {11, 1}, {1, 1}, {11, 1}, {1, 1}, {11, 1}, {1, 1}, {11, 1}, {1, 2},
+      
+      {0, 1} // Fin
+};
+
+ //CANCIONES 2  "Megalovania" Undertale
+//______________________________________________________
+static const nota_cancion_t cancion2[] = {
+// Frase 1: El famoso riff inicial
+{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
+
+// Frase 2: Se repite la melodía idéntica (el bajo cambiará abajo)
+{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
+
+// Frase 3: Tercera repetición de la melodía
+{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
+
+// Frase 4: Cuarta repetición de la melodía
+{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
+
+{0, 1} // Fin de la melodía
+};
+
+ //CANCIONES 3 Animals – Martin Garrix
+//______________________________________________________
+static const nota_cancion_t cancion3[] = {
+ // Frase 1: Entrada rítmica en FA
+ {4, 2}, {4, 1}, {4, 1}, {9, 2}, {4, 1}, {4, 1},
+ {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
+
+ // Frase 2: El salto a las notas agudas (DO2 y LA#)
+ {8, 2}, {8, 1}, {8, 1}, {9, 2}, {14, 1}, {14, 1},
+ {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
+
+ // Frase 3: Variación con SOL#
+ {4, 2}, {4, 1}, {4, 1}, {9, 2}, {13, 1}, {13, 1},
+ {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
+
+ // Frase 4: El cierre de la frase para reiniciar el bucle
+ {4, 2}, {4, 1}, {4, 1}, {9, 2}, {4, 1}, {4, 1},
+ {13, 1}, {13, 1}, {12, 1}, {12, 1}, {4, 2}, {9, 2},
+
+ {0, 1} // Fin de la melodía
+ 
+};
+
+ // BAJOS DE LAS CANCIONES
+//______________________________________________________
+static const uint8_t bajo1[] = {
+	 // Frase 1
+      9,9,9,
+	  9,9,9,
+	  9,9,9,
+	  9,9,9,
+	  
+	  9,9,9,
+	  9,9,9,
+	  9,9,9,
+	  9,9,9,
+	  
+	  9,9,9,
+	  9,9,9,
+	  9,9,9,
+	  9,9,9,
+
+      // Silencios mientras responde la melodía
+      9,9,9,9,9,9,9,9,9,9,9,9,
+	  
+      // Frase 2
+      9,9,9,9,9,
+      9,9,9,9,9,
+      9,9,9,9,9,
+      9,9,9,9,
+
+      // Frase 3: silencio
+      9,9,9,9,9,9,9,9,
+      9,9,9,9,9,9,9,9,9,9,9,9,
+
+      // Frase 4: pulsos estables de cierre en DO
+      1,9,1,9,1,9,1,9,9,
+
+      // Fin
+      0
+};
+
+static const uint8_t bajo2[] = {
+    // Frase 1: El bajo arranca en RE (nota 2) y hace silencios intercalados con la melodía
+    2, 2, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+    
+    // Frase 2: El bajo baja a DO (nota 1)
+    1, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+    
+    // Frase 3: El bajo baja a SI (nota 7)
+    7, 7, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+    
+    // Frase 4: El bajo aterriza en LA# / Sib (nota 14)
+    14, 14, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+
+    0 // Fin del bajo
+};
+
+static const uint8_t bajo3[] = {
+    // Frase 1: Golpes de bajo estables simulando el bombo electrónico en FA (4)
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+
+    // Frase 2: El bajo se mantiene firme en el ritmo
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+
+    // Frase 3: Sigue el pulso constante del bombo
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+
+    // Frase 4: Acompaña el cierre rítmico final
+    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
+    9, 9, 9, 9, 9, 9, 9, 9, 4, 4, 9, 9,
+
+    0 // Fin del bajo
+};
+
+ // RETARDO CON UART
+//______________________________________________________
+
+// durante toda la canción, se revisa UART cada 10 ms.
+
+static uint8_t esperar_duracion(uint16_t milisegundos)
+{
+    uint16_t tiempo;
+    uint16_t pasos;
+
+    pasos = milisegundos / 10;
+
+    for (tiempo = 0; tiempo < pasos; tiempo++) {
+
+        _delay_ms(10);
+
+        if (uart_hay_dato()) {
+
+            char comando;
+
+            comando = uart_recibir_caracter();
+
+            if (comando == 'S' ||
+                comando == 's' ||
+                comando == 'P' ||
+                comando == 'p') {
+
+                detener_sonido();
+
+                modo_actual = MODO_PIANO;
+
+                lcd_limpiar();
+
+                lcd_posicion(0, 0);
+                lcd_texto("MODO PIANO");
+
+                lcd_posicion(1, 0);
+                lcd_texto("Esperando...");
+
+                uart_enviar_texto(
+                    "\r\nCancion detenida.\r\n"
+                );
+
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+ // OBTENER CANCION
+//______________________________________________________
+static const nota_cancion_t *obtener_cancion(uint8_t numero)
+{
+    if (numero == 1) {
+        return cancion1;
+    }
+
+    if (numero == 2) {
+        return cancion2;
+    }
+
+    return cancion3;
+}
+
+ // OBTENER BAJO
+//______________________________________________________
+static const uint8_t *obtener_bajo(uint8_t numero)
+{
+    if (numero == 1) {
+        return bajo1;
+    }
+
+    if (numero == 2) {
+        return bajo2;
+    }
+
+    return bajo3;
+}
+
+ // MOSTRAR NOTA EN LCD
+//______________________________________________________
+static void mostrar_nota_lcd(uint8_t nota)
+{
+    lcd_limpiar_linea(0);
+
+    lcd_posicion(0, 0);
+
+    lcd_texto("Nota: ");
+
+    lcd_texto(nombres_notas[nota]);
+
+    lcd_limpiar_linea(1);
+
+    lcd_posicion(1, 0);
+
+    lcd_texto("Frecuencia:");
+
+    lcd_numero(frecuencias_notas[nota]);
+}
+
+ // MOSTRAR CANCION
+//______________________________________________________
+static void mostrar_cancion_lcd(uint8_t numero)
+{
+    lcd_limpiar();
+
+    lcd_posicion(0, 0);
+
+    lcd_texto("Cancion ");
+
+    lcd_numero(numero);
+
+    lcd_posicion(1, 0);
+
+    lcd_texto("Reproduciendo");
+}
+
+ // REPRODUCIR CANCION
+//______________________________________________________
+static void reproducir_cancion(uint8_t numero)
+{
+    const nota_cancion_t *melodia;
+    const uint8_t *bajo;
+
+    uint8_t posicion;
+    uint8_t nota_melodia;
+    uint8_t nota_bajo;
+
+    uint16_t duracion;
+
+    melodia = obtener_cancion(numero);
+    bajo = obtener_bajo(numero);
+
+    posicion = 0;
+
+    mostrar_cancion_lcd(numero);
+
+    while (melodia[posicion].nota != 0) {
+
+        /*
+         * Revisar UART antes de cada nota.
+         */
+        if (uart_hay_dato()) {
+
+            char comando;
+
+            comando = uart_recibir_caracter();
+
+            if (comando == 'S' ||
+                comando == 's' ||
+                comando == 'P' ||
+                comando == 'p') {
+
+                detener_sonido();
+
+                modo_actual = MODO_PIANO;
+
+                lcd_limpiar();
+
+                lcd_posicion(0, 0);
+                lcd_texto("MODO PIANO");
+
+                lcd_posicion(1, 0);
+                lcd_texto("Esperando...");
+
+                uart_enviar_texto(
+                    "\r\nVolviendo a piano.\r\n"
+                );
+
+                return;
+            }
+        }
+
+        nota_melodia =
+            melodia[posicion].nota;
+
+        /*
+         * El bajo se repite.
+         */
+        nota_bajo =
+            bajo[posicion];
+
+        /*
+         * Activar ambos buzzers.
+         */
+        buzzer_melodia_frecuencia(
+            frecuencias_notas[nota_melodia]
+        );
+
+        if (nota_bajo == 9 || nota_bajo == 0) {
+	        buzzer_bajo_detener();
+	        } else {
+	        buzzer_bajo_frecuencia(
+	        frecuencias_notas[nota_bajo]
+	        );
+        }
+
+        /*
+         * Mostrar nota actual.
+         */
+        lcd_limpiar_linea(0);
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("C");
+
+        lcd_numero(numero);
+
+        lcd_texto(" ");
+
+        lcd_texto(
+            nombres_notas[nota_melodia]
+        );
+
+        lcd_limpiar_linea(1);
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Melodia+Bajo");
+
+        /*
+         * Duración:
+         *
+         * 1 = 100 ms
+         * 2 = 200 ms
+         * 3 = 300 ms
+         * 4 = 400 ms
+         */
+        duracion =
+            (uint16_t)
+            melodia[posicion].duracion * 100U;
+
+        /*
+         * Esperar y permitir STOP.
+         */
+        if (!esperar_duracion(duracion)) {
+            return;
+        }
+
+        posicion++;
+    }
+
+    /*
+     * Fin de canción.
+     */
+    detener_sonido();
+
+    lcd_limpiar();
+
+    lcd_posicion(0, 0);
+
+    lcd_texto("Cancion ");
+
+    lcd_numero(numero);
+
+    lcd_posicion(1, 0);
+
+    lcd_texto("Finalizada");
+
+    uart_enviar_texto(
+        "\r\nCancion finalizada.\r\n"
+    );
+
+    _delay_ms(1000);
+
+    modo_actual = MODO_PIANO;
+
+    lcd_limpiar();
+
+    lcd_posicion(0, 0);
+
+    lcd_texto("MODO PIANO");
+
+    lcd_posicion(1, 0);
+
+    lcd_texto("Esperando...");
+}
+
+ // PROCESAMIENTO UART
+//______________________________________________________
+static void procesar_uart(void)
+{
+    char comando;
+
+    if (!uart_hay_dato()) {
+        return;
+    }
+
+    comando = uart_recibir_caracter();
+
+    /*
+     * C = seleccionar canción.
+     *
+     * Se espera un segundo carácter:
+     *
+     * C1
+     * C2
+     * C3
+     */
+    if (comando == 'C' ||
+        comando == 'c') {
+
+        /*
+         * Esperar segundo carácter.
+         */
+        while (!uart_hay_dato()) {
+            /* Esperar */
+        }
+
+        comando = uart_recibir_caracter();
+
+        if (comando == '1') {
+
+            cancion_actual = 1;
+
+            modo_actual = MODO_CANCION;
+
+            uart_enviar_texto(
+                "\r\nSeleccionada Cancion 1\r\n"
+            );
+        }
+
+        else if (comando == '2') {
+
+            cancion_actual = 2;
+
+            modo_actual = MODO_CANCION;
+
+            uart_enviar_texto(
+                "\r\nSeleccionada Cancion 2\r\n"
+            );
+        }
+
+        else if (comando == '3') {
+
+            cancion_actual = 3;
+
+            modo_actual = MODO_CANCION;
+
+            uart_enviar_texto(
+                "\r\nSeleccionada Cancion 3\r\n"
+            );
+        }
+
+        else {
+
+            uart_enviar_texto(
+                "\r\nComando incorrecto.\r\n"
+            );
+        }
+    }
+
+    /*
+     * S = detener
+     */
+    else if (comando == 'S' ||
+             comando == 's') {
+
+        modo_actual = MODO_PIANO;
+
+        detener_sonido();
+
+        lcd_limpiar();
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("MODO PIANO");
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Esperando...");
+
+        uart_enviar_texto(
+            "\r\nCancion detenida.\r\n"
+        );
+    }
+
+    /*
+     * P = piano
+     */
+    else if (comando == 'P' ||
+             comando == 'p') {
+
+        modo_actual = MODO_PIANO;
+
+        detener_sonido();
+
+        lcd_limpiar();
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("MODO PIANO");
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Esperando...");
+
+        uart_enviar_texto(
+            "\r\nModo piano.\r\n"
+        );
+    }
+
+    /*
+     * M = mostrar menu
+     */
+    else if (comando == 'M' ||
+             comando == 'm') {
+
+        uart_enviar_texto(
+            "\r\n--- PIANO ELECTRONICO ---\r\n"
+        );
+
+        uart_enviar_texto(
+            "C1 - Cancion 1\r\n"
+        );
+
+        uart_enviar_texto(
+            "C2 - Cancion 2\r\n"
+        );
+
+        uart_enviar_texto(
+            "C3 - Cancion 3\r\n"
+        );
+
+        uart_enviar_texto(
+            "S  - Detener\r\n"
+        );
+
+        uart_enviar_texto(
+            "P  - Modo piano\r\n"
+        );
+    }
+}
+
+ // MODO PIANO
+//______________________________________________________
+static void modo_piano(void)
+{
+    uint8_t boton;
+
+    boton = leer_boton();
+
+    if (boton != 0) {
+
+        /*
+         * Reproducir nota.
+         */
+        reproducir_nota(boton);
+
+        /*
+         * Mostrar en LCD.
+         */
+        mostrar_nota_lcd(boton);
+
+        /*
+         * Mostrar por UART.
+         */
+        uart_enviar_texto(
+            "Nota: "
+        );
+
+        uart_enviar_texto(
+            nombres_notas[boton]
+        );
+
+        uart_enviar_texto(
+            " - "
+        );
+
+        uart_enviar_texto(
+            "Frecuencia: "
+        );
+
+        /*
+         * Convertir frecuencia a texto.
+         */
+        {
+            char texto[6];
+
+            utoa(
+                frecuencias_notas[boton],
+                texto,
+                10
+            );
+
+            uart_enviar_texto(texto);
+        }
+
+        uart_enviar_texto(" Hz\r\n");
+
+        /*
+         * Esperar hasta soltar el botón.
+         */
+        while (leer_boton() != 0) {
+
+            /*
+             * Si llega un comando UART,
+             * atenderlo.
+             */
+            if (uart_hay_dato()) {
+                procesar_uart();
+
+                if (modo_actual != MODO_PIANO) {
+                    return;
+                }
+            }
+        }
+
+        /*
+         * Detener sonido al soltar botón.
+         */
+        detener_sonido();
+
+        lcd_limpiar_linea(0);
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("MODO PIANO");
+
+        lcd_limpiar_linea(1);
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Esperando...");
+    }
+}
+
+ // MAIN
+//______________________________________________________
+int main(void)
+{
+    uart_iniciar();
+
+    i2c_iniciar();
+
+    lcd_iniciar();
+
+    botones_iniciar();
+
+    sonido_iniciar();
+
+    /*
+     * Mensaje inicial LCD.
+     */
+    if (lcd_disponible) {
+
+        lcd_limpiar();
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("PIANO Y CANCION");
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Listo!");
+
+        _delay_ms(1500);
+
+        lcd_limpiar();
+
+        lcd_posicion(0, 0);
+
+        lcd_texto("MODO PIANO");
+
+        lcd_posicion(1, 0);
+
+        lcd_texto("Esperando...");
+    }
+
+ // Mensaje inicial UART.
+//______________________________________________________
+    uart_enviar_texto(
+        "\r\n"
+        "____________________________\r\n"
+		"\r\n"
+        "    PIANO ELECTRONICO       \r\n"
+        "____________________________\r\n"
+    );
+
+    uart_enviar_texto(
+        "C1 - Cancion 1\r\n"
+    );
+
+    uart_enviar_texto(
+        "C2 - Cancion 2\r\n"
+    );
+
+    uart_enviar_texto(
+        "C3 - Cancion 3\r\n"
+    );
+
+    uart_enviar_texto(
+        "S  - Detener cancion\r\n"
+    );
+
+    uart_enviar_texto(
+        "P  - Modo piano\r\n"
+    );
+
+    uart_enviar_texto(
+        "M  - Mostrar menu\r\n"
+    );
+
+    uart_enviar_texto(
+        "Sistema listo.\r\n\r\n"
+    );
+
+    while (1) {
+
+        /*
+         * UART tiene prioridad.
+         */
+        procesar_uart();
+
+        /*
+         * MODO PIANO
+         */
+        if (modo_actual == MODO_PIANO) {
+
+            modo_piano();
+        }
+
+        /*
+         * MODO CANCION
+         */
+        else {
+
+            reproducir_cancion(
+                cancion_actual
+            );
+        }
+    }
+}
