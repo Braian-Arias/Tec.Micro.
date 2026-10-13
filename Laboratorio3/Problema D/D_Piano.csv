@@ -1,0 +1,8 @@
+﻿Name,Quantity,Component
+"U1",1," Arduino Uno R3"
+"1, 2",2," Breadboard Small"
+"S1, S2, S3, S8, S4, S5, S6, S7",8," Pushbutton"
+"R1, R2",2,"1 kΩ Resistor"
+"T2n2222(2), T2n2222(1)",2," NPN Transistor (BJT)"
+"PIEZO1, PIEZO2",2," Piezo"
+"U2",1,"MCP23008-based, 32 (0x20) LCD 16 x 2 (I2C)"
