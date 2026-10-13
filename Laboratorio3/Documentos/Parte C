@@ -1,0 +1,282 @@
+#define F_CPU 8000000UL
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdint.h>
+#include <stdio.h>
+// =====================================
+// DEFINICION DE PINES
+// =====================================
+#define WS_PIN PB0
+#define SERVO_PIN PB1
+#define LCD_RS PD2
+#define LCD_E  PD3
+// =====================================
+// VARIABLES
+// =====================================
+uint16_t lecturaR = 0;
+uint16_t lecturaG = 0;
+uint16_t lecturaB = 0;
+uint8_t colorDetectado = 0;
+uint16_t diferenciaMinima = 0;
+
+const uint16_t referencias[4][3] = {
+    {800, 200, 150},  // Rojo
+    {200, 800, 200},  // Verde
+    {150, 200, 800},  // Azul
+    {750, 750, 200}   // Amarillo
+};
+const char *nombres[4] = {
+    "ROJO",
+    "VERDE",
+    "AZUL",
+    "AMARILLO"
+};
+// Angulos logicos del servo
+const int8_t angulos[4] = {
+    -90, -30, 30, 90
+};
+// =====================================
+// UART
+// =====================================
+void uart_init(void) {
+    // 9600 baudios, 8 MHz
+    UBRR0H = 0;
+    UBRR0L = 51;
+    UCSR0B = (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) |
+             (1 << UCSZ00);
+}
+void uart_char(char c) {
+    while (!(UCSR0A & (1 << UDRE0)));
+    UDR0 = c;
+}
+void uart_texto(const char *texto) {
+    while (*texto) {
+        uart_char(*texto++);
+    }
+}
+void adc_init(void) {
+    ADMUX = (1 << REFS0);
+    // ADC habilitado, prescaler 64
+    ADCSRA = (1 << ADEN) |
+             (1 << ADPS2) |
+             (1 << ADPS1);
+}
+
+uint16_t adc_leer(void) {
+    ADMUX = (1 << REFS0);
+    ADCSRA |= (1 << ADSC);
+    while (ADCSRA & (1 << ADSC));
+    return ADC;
+}
+// =====================================
+// LCD 16x2 - MODO 4 BITS
+// =====================================
+void lcd_pulso(void) {
+    PORTD |= (1 << LCD_E);
+    _delay_us(2);
+    PORTD &= ~(1 << LCD_E);
+    _delay_us(50);
+}
+void lcd_nibble(uint8_t valor) {
+    PORTD = (PORTD & 0x0F) |
+            (valor & 0xF0);
+    lcd_pulso();
+}
+void lcd_enviar(uint8_t valor, uint8_t rs) {
+    if (rs)
+        PORTD |= (1 << LCD_RS);
+    else
+        PORTD &= ~(1 << LCD_RS);
+    lcd_nibble(valor);
+    lcd_nibble(valor << 4);
+}
+
+void lcd_comando(uint8_t comando) {
+    lcd_enviar(comando, 0);
+    if (comando == 0x01 || comando == 0x02)
+        _delay_ms(2);
+}
+void lcd_caracter(char c) {
+    lcd_enviar(c, 1);
+}
+void lcd_texto(const char *texto) {
+    while (*texto)
+        lcd_caracter(*texto++);
+}
+void lcd_init(void) {
+    DDRD |= 0xFC;
+    _delay_ms(40);
+    PORTD &= ~(1 << LCD_RS);
+    lcd_nibble(0x30);
+    _delay_ms(5);
+    lcd_nibble(0x30);
+    _delay_us(150);
+    lcd_nibble(0x30);
+    lcd_nibble(0x20);
+    lcd_comando(0x28);
+    lcd_comando(0x0C);
+    lcd_comando(0x06);
+    lcd_comando(0x01);
+}
+static inline void ws_byte(uint8_t dato) {
+    uint8_t contador = 8;
+    asm volatile(
+        "1:                  \n\t"
+        "sbi %[puerto], 0    \n\t"
+        "sbrs %[dato], 7     \n\t"
+        "cbi %[puerto], 0    \n\t"
+        "lsl %[dato]         \n\t"
+        "nop                 \n\t"
+        "nop                 \n\t"
+        "cbi %[puerto], 0    \n\t"
+        "dec %[contador]     \n\t"
+        "brne 1b             \n\t"
+        : [dato] "+r" (dato),
+          [contador] "+r" (contador)
+        : [puerto] "I" (_SFR_IO_ADDR(PORTB))
+        : "memory"
+    );
+}
+void ws_color(uint8_t rojo,
+              uint8_t verde,
+              uint8_t azul) {
+    uint8_t estado = SREG;
+    cli();
+    for (uint8_t i = 0; i < 8; i++) {
+        ws_byte(verde);
+        ws_byte(rojo);
+        ws_byte(azul);
+    }
+    SREG = estado;
+    // Reset de la tira
+    _delay_us(100);
+}
+// =====================================
+// SERVO PWM - TIMER1
+// =====================================
+void servo_init(void) {
+    DDRB |= (1 << SERVO_PIN);
+    // Fast PWM, TOP en ICR1
+    TCCR1A = (1 << COM1A1) |
+             (1 << WGM11);
+    TCCR1B = (1 << WGM13) |
+             (1 << WGM12) |
+             (1 << CS11);
+    // 8 MHz / 8 = 1 MHz
+    // Periodo de 20 ms
+    ICR1 = 19999;
+    OCR1A = 1500;
+}
+void servo_mover(int8_t angulo) {
+    // -90 grados -> 1000 us
+    //   0 grados -> 1500 us
+    // +90 grados -> 2000 us
+    int16_t pulso = 1500 +
+                    ((int16_t)angulo * 500) / 90;
+    OCR1A = (uint16_t)pulso;
+}
+// =====================================
+// MEDICION RGB
+// =====================================
+void medir_colores(void) {
+    // Iluminacion roja
+    ws_color(255, 0, 0);
+    _delay_ms(100);
+    lecturaR = adc_leer();
+    // Iluminacion verde
+    ws_color(0, 255, 0);
+    _delay_ms(100);
+    lecturaG = adc_leer();
+    // Iluminacion azul
+    ws_color(0, 0, 255);
+    _delay_ms(100);
+    lecturaB = adc_leer();
+    // Apagar tira
+    ws_color(0, 0, 0);
+}
+uint16_t diferencia(uint16_t a, uint16_t b) {
+    if (a > b)
+        return a - b;
+    return b - a;
+}
+void clasificar(void) {
+    uint32_t mejor = 0xFFFFFFFFUL;
+    for (uint8_t i = 0; i < 4; i++) {
+        uint32_t distancia =
+            diferencia(lecturaR, referencias[i][0]) +
+            diferencia(lecturaG, referencias[i][1]) +
+            diferencia(lecturaB, referencias[i][2]);
+        if (distancia < mejor) {
+            mejor = distancia;
+            colorDetectado = i;
+        }
+    }
+    diferenciaMinima = (uint16_t)mejor;
+}
+// =====================================
+// MOSTRAR RESULTADOS
+// =====================================
+void mostrar_resultados(void) {
+    char mensaje[100];
+    // LCD
+    lcd_comando(0x01);
+    lcd_texto("COLOR: ");
+    lcd_texto(nombres[colorDetectado]);
+    lcd_comando(0xC0);
+    lcd_texto("SERVO: ");
+    int8_t angulo = angulos[colorDetectado];
+
+    if (angulo >= 0)
+        lcd_caracter('+');
+    else
+        lcd_caracter('-');
+    int16_t absoluto = angulo;
+    if (absoluto < 0)
+        absoluto = -absoluto;
+    if (absoluto >= 10)
+        lcd_caracter('0' + absoluto / 10);
+    lcd_caracter('0' + absoluto % 10);
+    lcd_texto(" GRADOS");
+    // UART
+    snprintf(mensaje, sizeof(mensaje),
+             "\r\nR=%u G=%u B=%u\r\n",
+             lecturaR, lecturaG, lecturaB);
+    uart_texto(mensaje);
+    snprintf(mensaje, sizeof(mensaje),
+             "COLOR=%s REF=(%u,%u,%u)\r\n",
+             nombres[colorDetectado],
+             referencias[colorDetectado][0],
+             referencias[colorDetectado][1],
+             referencias[colorDetectado][2]);
+    uart_texto(mensaje);
+    snprintf(mensaje, sizeof(mensaje),
+             "DIF=%u SERVO=%d\r\n",
+             diferenciaMinima,
+             angulos[colorDetectado]);
+    uart_texto(mensaje);
+}
+// =====================================
+// MAIN
+// =====================================
+int main(void) {
+    DDRB |= (1 << WS_PIN);
+    PORTB &= ~(1 << WS_PIN);
+    adc_init();
+    uart_init();
+    lcd_init();
+    servo_init();
+    lcd_texto("CLASIFICADOR");
+    lcd_comando(0xC0);
+    lcd_texto("INICIANDO...");
+    _delay_ms(1000);
+
+    while (1) {
+        medir_colores();
+        clasificar();
+        servo_mover(angulos[colorDetectado]);
+        mostrar_resultados();
+        _delay_ms(1500);
+    }
+}
