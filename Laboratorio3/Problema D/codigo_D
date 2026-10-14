@@ -35,7 +35,7 @@
  * Botón presionado = 0
  */
 
-{
+
 #define F_CPU 16000000UL
 
 #include <avr/interrupt.h>
@@ -79,7 +79,7 @@ static uint8_t lcd_disponible = 0;
 #define NOTA_RE2  587  // RE agudo
 #define NOTA_RE2_S 622 // RE# agudo
 #define NOTA_MI2  659  // MI agudo
-}
+
 static const uint16_t frecuencias_notas[17] = {
 	0,          // Índice 0: sin nota
 	NOTA_DO,    // 1
@@ -127,7 +127,7 @@ typedef enum {
     MODO_CANCION
 } modo_sistema_t;
 
-{
+
 static volatile modo_sistema_t modo_actual = MODO_PIANO;
 
 /* Canción seleccionada */
@@ -142,7 +142,7 @@ static volatile uint8_t cancion_actual = 0;
 #define BUZZER_BAJO_PIN     PB5
 
 static volatile uint8_t buzzer_bajo_activo = 0;
-}
+
  //I2C
 //______________________________________________________
 static void i2c_iniciar(void)
@@ -627,149 +627,70 @@ typedef struct {
 //{8, 2}, // 8 = do2
 //{9, 2}, // 9 = mute
 	
- //CANCIONES 1 "Underground Theme" Super Mario Bros.
+ //CANCIONES 1 "Underground Theme" Super Mario Bros. 
 //______________________________________________________
 static const nota_cancion_t cancion1[] = {
-      // Frase 1: Bajo inicial
-      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
-      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
-      {8, 1},{8, 1}, {9, 1}, {6, 1},{6, 1},{9, 1}, {14, 1}, {14, 1},{9, 2},{9, 2},
-    
-	  // Entra melodía
-	  {8, 1}, {14, 1}, {5, 2}, {11, 2}, {6, 2}, {14, 2},
-		  
-      // Frase 2: Descenso 
-      {11, 1}, {2, 1}, {10, 1}, {1, 1}, {9, 1},
-      {11, 1}, {2, 1}, {13, 1}, {5, 1}, {9, 1},
-      {10, 1}, {1, 1}, {12, 1}, {4, 1}, {9, 1},
-      {3, 1}, {14, 1}, {6, 1}, {13, 1},
-      
-      // Frase 3: Interludio Rítmico veloz
-      {5, 1}, {12, 1}, {4, 1}, {3, 1}, {11, 1}, {2, 1}, {10, 1}, {1, 1},
-      {12, 1}, {4, 1}, {3, 1}, {11, 1}, {2, 1}, {10, 1}, {1, 1}, {7, 1}, {14, 1}, {6, 1}, {13, 1}, {5, 1},
-      
-      // Frase 4: Salida
-      {11, 1}, {1, 1}, {11, 1}, {1, 1}, {11, 1}, {1, 1}, {11, 1}, {1, 2},
-      
-      {0, 1} // Fin
+	{1,1}, {11,1}, {9,1},{1,1}, {1,1}, {9,1},{11,1}, {1,1}, {9,1}, {9,1},  // 9
+	{1,1}, {11,1}, {9,1},{1,1}, {1,1}, {9,1},{11,1}, {1,1}, {9,1},{9,1},   // 9
+	{6,1}, {5,1}, {10,1}, {6,1}, {5,1}, {10,1}, {9,1},{9,1},   // 8
+	{6,1}, {5,1}, {10,1}, {6,1}, {5,1}, {10,1}, {9,1},{9,1},   // 8
+	{6,1}, {5,1}, {7,1}, {8,1}, {9,1},{9,1},    // 6
+		  {0,1}
 };
 
- //CANCIONES 2  "Megalovania" Undertale
-//______________________________________________________
-static const nota_cancion_t cancion2[] = {
-// Frase 1: El famoso riff inicial
-{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
-
-// Frase 2: Se repite la melodía idéntica (el bajo cambiará abajo)
-{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
-
-// Frase 3: Tercera repetición de la melodía
-{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
-
-// Frase 4: Cuarta repetición de la melodía
-{16, 1}, {16, 1}, {16, 2}, {6, 2}, {9, 1},{9, 1}, {12, 2}, {9, 1}, {5, 2}, {4, 2}, {2, 2},
-
-{0, 1} // Fin de la melodía
-};
-
- //CANCIONES 3 Animals – Martin Garrix
-//______________________________________________________
-static const nota_cancion_t cancion3[] = {
- // Frase 1: Entrada rítmica en FA
- {4, 2}, {4, 1}, {4, 1}, {9, 2}, {4, 1}, {4, 1},
- {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
-
- // Frase 2: El salto a las notas agudas (DO2 y LA#)
- {8, 2}, {8, 1}, {8, 1}, {9, 2}, {14, 1}, {14, 1},
- {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
-
- // Frase 3: Variación con SOL#
- {4, 2}, {4, 1}, {4, 1}, {9, 2}, {13, 1}, {13, 1},
- {9, 2}, {4, 1}, {4, 1}, {4, 1}, {4, 1}, {9, 2},
-
- // Frase 4: El cierre de la frase para reiniciar el bucle
- {4, 2}, {4, 1}, {4, 1}, {9, 2}, {4, 1}, {4, 1},
- {13, 1}, {13, 1}, {12, 1}, {12, 1}, {4, 2}, {9, 2},
-
- {0, 1} // Fin de la melodía
- 
-};
-
- // BAJOS DE LAS CANCIONES
+// BAJOS DE LAS CANCION 1
 //______________________________________________________
 static const uint8_t bajo1[] = {
-	 // Frase 1
-      9,9,9,
-	  9,9,9,
-	  9,9,9,
-	  9,9,9,
-	  
-	  9,9,9,
-	  9,9,9,
-	  9,9,9,
-	  9,9,9,
-	  
-	  9,9,9,
-	  9,9,9,
-	  9,9,9,
-	  9,9,9,
-
-      // Silencios mientras responde la melodía
-      9,9,9,9,9,9,9,9,9,9,9,9,
-	  
-      // Frase 2
-      9,9,9,9,9,
-      9,9,9,9,9,
-      9,9,9,9,9,
-      9,9,9,9,
-
-      // Frase 3: silencio
-      9,9,9,9,9,9,9,9,
-      9,9,9,9,9,9,9,9,9,9,9,9,
-
-      // Frase 4: pulsos estables de cierre en DO
-      1,9,1,9,1,9,1,9,9,
-
-      // Fin
-      0
+	// Compas 1-2 
+	1, 11, 9, 1, 1, 9, 11, 1, 9, 9,   // 9
+	1, 11, 9, 1, 1, 9, 11, 1, 9, 9,   // 9
+	// Compas 3-4
+	5, 14, 5, 5, 14, 5, 9, 9,   // 8
+	5, 5, 14, 5, 5, 14, 9, 9,   // 8
+	6, 5, 7, 8, 9,
+	0
 };
-
+//CANCIONES 2  "Megalovania" Undertale 48
+//______________________________________________________
+static const nota_cancion_t cancion2[] = {
+	 {2,1},{2,1},{9,1},{6,1},{13,1},{5,1},{2,1},{4,1},{5,1},{9,1},  // 10
+	 {1,1},{1,1},{9,1},{6,1},{13,1},{5,1},{2,1},{4,1},{5,1},{9,1},
+	 {7,1},{7,1},{9,1},{6,1},{13,1},{5,1},{2,1},{4,1},{5,1},{9,1},
+	 {14,1},{14,1},{9,1},{6,1},{13,1},{5,1},{2,1},{4,1},{5,1},{9,1},
+		  {0,1}
+};
+// BAJOS DE LAS CANCION 2
+//______________________________________________________
 static const uint8_t bajo2[] = {
-    // Frase 1: El bajo arranca en RE (nota 2) y hace silencios intercalados con la melodía
-    2, 2, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
-    
-    // Frase 2: El bajo baja a DO (nota 1)
-    1, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
-    
-    // Frase 3: El bajo baja a SI (nota 7)
-    7, 7, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
-    
-    // Frase 4: El bajo aterriza en LA# / Sib (nota 14)
-    14, 14, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
-
-    0 // Fin del bajo
+	// Frase 1: Do, silencio x10
+	1, 9, 1, 9, 1, 9, 1, 9, 1, 9,
+	1, 9, 1, 9, 1, 9, 1, 9, 1, 9,
+	// Frase 2: Do, silencio x10
+	1, 9, 1, 9, 1, 9, 1, 9, 1, 9,
+	1, 9, 1, 9, 1, 9, 1, 9, 1, 9,
+	0
 };
 
+//CANCIONES 3 Animals – Martin Garrix 32
+//______________________________________________________
+static const nota_cancion_t cancion3[] = {
+	{8,1},{8,1},{8,1},{8,1},{14,1},{14,1},{14,1},{14,1},   // 8
+	{2,1},{2,1},{8,1},{8,1},{8,1},{8,1},{14,1},{14,1},   // 8
+	{14,1},{14,1},{13,1},{13,1},{4,1},{4,1},{8,1},{8,1},   // 8
+	{8,1},{8,1},{14,1},{14,1},{13,1},{13,1},{4,1},{4,1},   // 8
+		  {0,1}
+};
+
+// BAJOS DE LAS CANCION 3
+//______________________________________________________
 static const uint8_t bajo3[] = {
-    // Frase 1: Golpes de bajo estables simulando el bombo electrónico en FA (4)
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-
-    // Frase 2: El bajo se mantiene firme en el ritmo
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-
-    // Frase 3: Sigue el pulso constante del bombo
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-
-    // Frase 4: Acompaña el cierre rítmico final
-    4, 4, 9, 9, 9, 9, 4, 4, 9, 9, 9, 9,
-    9, 9, 9, 9, 9, 9, 9, 9, 4, 4, 9, 9,
-
-    0 // Fin del bajo
+	// 4 frases x 8 notas = 32
+	4, 4, 9, 9, 9, 9, 4, 4,
+	4, 4, 9, 9, 9, 9, 4, 4,
+	4, 4, 9, 9, 9, 9, 4, 4,
+	4, 4, 9, 9, 9, 9, 4, 4,
+	0
 };
-
  // RETARDO CON UART
 //______________________________________________________
 
