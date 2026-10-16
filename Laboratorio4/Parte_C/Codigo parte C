@@ -1,0 +1,118 @@
+#define F_CPU 8000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Entradas
+#define BOTON PD2
+#define LED_VERDE PB0
+#define LED_ROJO PB1
+#define BUZZER PB2
+
+// Variables
+uint8_t armado = 0;
+uint8_t alarma = 0;
+
+// Inicializar UART
+void uart_init(void) {
+    UBRR0H = 0;
+    UBRR0L = 51; // 9600 baudios con 8 MHz
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+// Enviar caracter
+void uart_enviar(char dato) {
+    while (!(UCSR0A & (1 << UDRE0)));
+    UDR0 = dato;
+}
+// Enviar texto
+void uart_texto(const char *texto) {
+    while (*texto) {
+        uart_enviar(*texto++);
+    }
+}
+// Leer ADC
+void adc_init(void) {
+    ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN) |
+             (1 << ADPS2) |
+             (1 << ADPS1);
+}
+uint16_t leer_ldr(void) {
+    ADMUX = (ADMUX & 0xF0);
+    ADCSRA |= (1 << ADSC);
+    while (ADCSRA & (1 << ADSC));
+    return ADC;
+}
+
+// Configurar pines
+void pines_init(void) {
+    DDRD &= ~(1 << BOTON);
+    PORTD |= (1 << BOTON);
+    DDRB |= (1 << LED_VERDE);
+    DDRB |= (1 << LED_ROJO);
+    DDRB |= (1 << BUZZER);
+    PORTB = 0;
+}
+
+// Recibir comando serial
+void recibir_comando(void) {
+    static char comando[20];
+    static uint8_t indice = 0;
+    if (UCSR0A & (1 << RXC0)) {
+        char dato = UDR0;
+        if (dato == '\n' || dato == '\r') {
+            comando[indice] = '\0';
+            if (strcmp(comando, "ARMAR") == 0) {
+                armado = 1;
+                alarma = 0;
+                uart_texto("Sistema armado\r\n");
+            }
+            else if (strcmp(comando, "DESARMAR") == 0) {
+                armado = 0;
+                alarma = 0;
+                uart_texto("Sistema desarmado\r\n");
+            }
+            indice = 0;
+        }
+        else if (indice < 19) {
+            comando[indice++] = dato;
+        }
+    }
+}
+int main(void) {
+    pines_init();
+    uart_init();
+    adc_init();
+    uart_texto("Sistema de alarma iniciado\r\n");
+
+    while (1) {
+        recibir_comando();
+        uint16_t luz = leer_ldr();
+        uint8_t movimiento =
+            !(PIND & (1 << BOTON));
+        // Detectar intrusiones
+        if (armado && !alarma) {
+            if (movimiento || luz > 500) {
+                alarma = 1;
+                uart_texto("ALARMA ACTIVADA\r\n");
+            }
+        }
+        // LED verde
+        if (armado) {
+            PORTB |= (1 << LED_VERDE);
+        } else {
+            PORTB &= ~(1 << LED_VERDE);
+        }
+        // LED rojo y buzzer
+        if (alarma) {
+            PORTB |= (1 << LED_ROJO);
+            PORTB |= (1 << BUZZER);
+        } else {
+            PORTB &= ~(1 << LED_ROJO);
+            PORTB &= ~(1 << BUZZER);
+        }
+        _delay_ms(50);
+    }
+}
