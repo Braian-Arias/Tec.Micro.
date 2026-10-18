@@ -1,10 +1,4 @@
-/*
- * GccApplication4.c
- *
- * Created: 18/10/2026 1:22:26
- * Author : User
- */ 
-
+// Cajero Automatico
 #define F_CPU 16000000UL
 
 #include <avr/io.h>
@@ -14,6 +8,7 @@
 #include "SPI.h"
 #include "RC522.h"
 #include "LCD_I2C.h"
+//#include "UART.h" hacer un uart no entiendo mejor el mio modificar despues el uart y modificar esto. no tocar por ahora, es para probar si anda la tarjeta esto
 
 #define VELOCIDAD_UART 9600UL
 #define VALOR_UBRR ((F_CPU / (16UL * VELOCIDAD_UART)) - 1UL)
