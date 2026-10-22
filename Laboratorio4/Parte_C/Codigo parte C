@@ -1,118 +1,228 @@
+
 #define F_CPU 8000000UL
+
 #include <avr/io.h>
 #include <util/delay.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 // Entradas
-#define BOTON PD2
+#define SENSOR_MOV PD2
+#define BOTON_CONTROL PD3
+#define LDR 0
+
+// Salidas
 #define LED_VERDE PB0
 #define LED_ROJO PB1
 #define BUZZER PB2
 
-// Variables
-uint8_t armado = 0;
-uint8_t alarma = 0;
+#define LIMITE_LUZ 500
 
-// Inicializar UART
+// Estados del sistema
+#define DESARMADO 0
+#define ARMADO 1
+#define ALARMA 2
+
+uint8_t estado = DESARMADO;
+
+// Inicializar comunicacion serial
 void uart_init(void) {
     UBRR0H = 0;
-    UBRR0L = 51; // 9600 baudios con 8 MHz
+    UBRR0L = 51;
+
     UCSR0B = (1 << RXEN0) | (1 << TXEN0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
 }
+
 // Enviar caracter
 void uart_enviar(char dato) {
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = dato;
 }
-// Enviar texto
+
+// Enviar mensaje
 void uart_texto(const char *texto) {
     while (*texto) {
         uart_enviar(*texto++);
     }
 }
-// Leer ADC
+
+// Inicializar ADC
 void adc_init(void) {
     ADMUX = (1 << REFS0);
+
     ADCSRA = (1 << ADEN) |
              (1 << ADPS2) |
              (1 << ADPS1);
 }
+
+// Leer sensor LDR
 uint16_t leer_ldr(void) {
-    ADMUX = (ADMUX & 0xF0);
+    ADMUX = (1 << REFS0) | LDR;
+
     ADCSRA |= (1 << ADSC);
     while (ADCSRA & (1 << ADSC));
+
     return ADC;
 }
 
-// Configurar pines
+// Configurar entradas y salidas
 void pines_init(void) {
-    DDRD &= ~(1 << BOTON);
-    PORTD |= (1 << BOTON);
-    DDRB |= (1 << LED_VERDE);
-    DDRB |= (1 << LED_ROJO);
-    DDRB |= (1 << BUZZER);
-    PORTB = 0;
+    DDRD &= ~((1 << SENSOR_MOV) |
+              (1 << BOTON_CONTROL));
+
+    PORTD |= (1 << SENSOR_MOV) |
+             (1 << BOTON_CONTROL);
+
+    DDRB |= (1 << LED_VERDE) |
+            (1 << LED_ROJO) |
+            (1 << BUZZER);
+
+    PORTB &= ~((1 << LED_VERDE) |
+               (1 << LED_ROJO) |
+               (1 << BUZZER));
 }
 
-// Recibir comando serial
+// Cambiar estado
+void cambiar_estado(uint8_t nuevo) {
+    estado = nuevo;
+
+    if (estado == DESARMADO) {
+        uart_texto("Sistema desarmado\r\n");
+    }
+    else if (estado == ARMADO) {
+        uart_texto("Sistema armado\r\n");
+    }
+}
+
+// Activar alarma
+void activar_alarma(const char *motivo) {
+    estado = ALARMA;
+
+    uart_texto("ALARMA ACTIVADA\r\n");
+    uart_texto("Motivo: ");
+    uart_texto(motivo);
+    uart_texto("\r\n");
+}
+
+// Recibir comandos por UART
 void recibir_comando(void) {
     static char comando[20];
     static uint8_t indice = 0;
+
     if (UCSR0A & (1 << RXC0)) {
         char dato = UDR0;
+
         if (dato == '\n' || dato == '\r') {
             comando[indice] = '\0';
+
             if (strcmp(comando, "ARMAR") == 0) {
-                armado = 1;
-                alarma = 0;
-                uart_texto("Sistema armado\r\n");
+                cambiar_estado(ARMADO);
             }
             else if (strcmp(comando, "DESARMAR") == 0) {
-                armado = 0;
-                alarma = 0;
-                uart_texto("Sistema desarmado\r\n");
+                cambiar_estado(DESARMADO);
             }
+            else if (strcmp(comando, "ESTADO") == 0) {
+                if (estado == DESARMADO)
+                    uart_texto("Estado: DESARMADO\r\n");
+                else if (estado == ARMADO)
+                    uart_texto("Estado: ARMADO\r\n");
+                else
+                    uart_texto("Estado: ALARMA\r\n");
+            }
+            else if (indice > 0) {
+                uart_texto("Comando incorrecto\r\n");
+            }
+
             indice = 0;
         }
-        else if (indice < 19) {
+        else if (indice < sizeof(comando) - 1) {
             comando[indice++] = dato;
+        }
+        else {
+            indice = 0;
         }
     }
 }
+
+// Control del pulsador de armado
+void controlar_boton(void) {
+    static uint8_t anterior = 0;
+    static uint8_t contador = 0;
+    uint8_t presionado =
+        !(PIND & (1 << BOTON_CONTROL));
+
+    // Antirrebote: 3 muestras de 50 ms
+    if (presionado != anterior) {
+        contador++;
+
+        if (contador >= 3) {
+            anterior = presionado;
+            contador = 0;
+
+            if (presionado) {
+                if (estado == DESARMADO) {
+                    cambiar_estado(ARMADO);
+                }
+                else {
+                    cambiar_estado(DESARMADO);
+                }
+            }
+        }
+    }
+    else {
+        contador = 0;
+    }
+}
+
+// Actualizar indicadores
+void actualizar_salidas(void) {
+    if (estado == ARMADO) {
+        PORTB |= (1 << LED_VERDE);
+    }
+    else {
+        PORTB &= ~(1 << LED_VERDE);
+    }
+
+    if (estado == ALARMA) {
+        PORTB |= (1 << LED_ROJO) |
+                 (1 << BUZZER);
+    }
+    else {
+        PORTB &= ~((1 << LED_ROJO) |
+                   (1 << BUZZER));
+    }
+}
+
 int main(void) {
     pines_init();
     uart_init();
     adc_init();
-    uart_texto("Sistema de alarma iniciado\r\n");
+
+    uart_texto("Sistema de alarma V2\r\n");
+    uart_texto("Comandos: ARMAR, DESARMAR, ESTADO\r\n");
 
     while (1) {
         recibir_comando();
+        controlar_boton();
+
         uint16_t luz = leer_ldr();
+
         uint8_t movimiento =
-            !(PIND & (1 << BOTON));
-        // Detectar intrusiones
-        if (armado && !alarma) {
-            if (movimiento || luz > 500) {
-                alarma = 1;
-                uart_texto("ALARMA ACTIVADA\r\n");
+            !(PIND & (1 << SENSOR_MOV));
+
+        if (estado == ARMADO) {
+            if (movimiento) {
+                activar_alarma("Movimiento detectado");
+            }
+            else if (luz > LIMITE_LUZ) {
+                activar_alarma("Cambio de iluminacion");
             }
         }
-        // LED verde
-        if (armado) {
-            PORTB |= (1 << LED_VERDE);
-        } else {
-            PORTB &= ~(1 << LED_VERDE);
-        }
-        // LED rojo y buzzer
-        if (alarma) {
-            PORTB |= (1 << LED_ROJO);
-            PORTB |= (1 << BUZZER);
-        } else {
-            PORTB &= ~(1 << LED_ROJO);
-            PORTB &= ~(1 << BUZZER);
-        }
+
+        actualizar_salidas();
+
         _delay_ms(50);
     }
 }
