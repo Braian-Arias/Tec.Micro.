@@ -1,38 +1,71 @@
-
-#define F_CPU 8000000UL
-
+#define F_CPU 16000000UL
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 // Entradas
-#define SENSOR_MOV PD2
-#define BOTON_CONTROL PD3
-#define LDR 0
+#define BOTON PD2
+#define UMBRAL_LDR 200
 
 // Salidas
 #define LED_VERDE PB0
 #define LED_ROJO PB1
 #define BUZZER PB2
 
-#define LIMITE_LUZ 500
+// LCD I2C
+#define LCD_ADDR 0x27
+#define LCD_RS 0x01
+#define LCD_EN 0x04
+#define LCD_BL 0x08
 
-// Estados del sistema
-#define DESARMADO 0
-#define ARMADO 1
-#define ALARMA 2
+// Variables del sistema
+uint8_t armado = 0;
+uint8_t alarma = 0;
+uint8_t silenciado = 0;
+uint8_t modoAuto = 1;
+uint16_t valorLDR = 0;
+uint8_t movimiento = 0;
+uint8_t pantalla = 0;
 
-uint8_t estado = DESARMADO;
+// Contadores
+uint8_t contadorLCD = 0;
+uint8_t contadorPantalla = 0;
+uint8_t contadorBuzzer = 0;
 
-// Inicializar comunicacion serial
+// Buffer de recepcion UART
+#define RX_SIZE 64
+
+volatile char rxBuffer[RX_SIZE];
+volatile uint8_t rxHead = 0;
+volatile uint8_t rxTail = 0;
+
+// =====================================
+// UART - 9600 BAUDIOS
+// =====================================
+
 void uart_init(void) {
     UBRR0H = 0;
-    UBRR0L = 51;
+    UBRR0L = 103;
+    UCSR0A = 0;
+    UCSR0B = (1 << RXEN0) |
+             (1 << TXEN0) |
+             (1 << RXCIE0);
+    UCSR0C = (1 << UCSZ01) |
+             (1 << UCSZ00);
+}
 
-    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
-    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+// Interrupcion de recepcion
+ISR(USART_RX_vect) {
+    char dato = UDR0;
+    uint8_t siguiente =
+        (rxHead + 1) % RX_SIZE;
+
+    if (siguiente != rxTail) {
+        rxBuffer[rxHead] = dato;
+        rxHead = siguiente;
+    }
 }
 
 // Enviar caracter
@@ -41,39 +74,166 @@ void uart_enviar(char dato) {
     UDR0 = dato;
 }
 
-// Enviar mensaje
+// Enviar texto
 void uart_texto(const char *texto) {
     while (*texto) {
         uart_enviar(*texto++);
     }
 }
 
-// Inicializar ADC
+// Enviar numero
+void uart_numero(uint16_t numero) {
+    char texto[6];
+    uint8_t i = 0;
+
+    do {
+        texto[i++] = '0' + numero % 10;
+        numero /= 10;
+    } while (numero);
+
+    while (i) {
+        uart_enviar(texto[--i]);
+    }
+}
+
+// =====================================
+// ADC - LDR
+// =====================================
+
 void adc_init(void) {
     ADMUX = (1 << REFS0);
 
     ADCSRA = (1 << ADEN) |
              (1 << ADPS2) |
-             (1 << ADPS1);
+             (1 << ADPS1) |
+             (1 << ADPS0);
 }
 
-// Leer sensor LDR
 uint16_t leer_ldr(void) {
-    ADMUX = (1 << REFS0) | LDR;
+    ADMUX = (1 << REFS0);
 
     ADCSRA |= (1 << ADSC);
+
     while (ADCSRA & (1 << ADSC));
 
     return ADC;
 }
 
-// Configurar entradas y salidas
-void pines_init(void) {
-    DDRD &= ~((1 << SENSOR_MOV) |
-              (1 << BOTON_CONTROL));
+// =====================================
+// I2C
+// =====================================
 
-    PORTD |= (1 << SENSOR_MOV) |
-             (1 << BOTON_CONTROL);
+void i2c_init(void) {
+    TWSR = 0;
+    TWBR = (uint8_t)((F_CPU / 100000UL - 16) / 2);
+    TWCR = (1 << TWEN);
+}
+
+void i2c_start(void) {
+    TWCR = (1 << TWINT) |
+           (1 << TWSTA) |
+           (1 << TWEN);
+
+    while (!(TWCR & (1 << TWINT)));
+}
+
+void i2c_enviar(uint8_t dato) {
+    TWDR = dato;
+
+    TWCR = (1 << TWINT) |
+           (1 << TWEN);
+
+    while (!(TWCR & (1 << TWINT)));
+}
+
+void i2c_stop(void) {
+    TWCR = (1 << TWINT) |
+           (1 << TWEN) |
+           (1 << TWSTO);
+}
+
+// =====================================
+// LCD I2C
+// =====================================
+
+void lcd_expansor(uint8_t dato) {
+    i2c_start();
+    i2c_enviar(LCD_ADDR << 1);
+    i2c_enviar(dato | LCD_BL);
+    i2c_stop();
+}
+
+void lcd_nibble(uint8_t dato) {
+    lcd_expansor(dato | LCD_EN);
+    _delay_us(2);
+
+    lcd_expansor(dato & ~LCD_EN);
+    _delay_us(50);
+}
+
+void lcd_enviar(uint8_t dato, uint8_t rs) {
+    lcd_nibble((dato & 0xF0) | rs);
+    lcd_nibble(((dato << 4) & 0xF0) | rs);
+}
+
+void lcd_comando(uint8_t comando) {
+    lcd_enviar(comando, 0);
+
+    if (comando == 0x01 || comando == 0x02)
+        _delay_ms(2);
+}
+
+void lcd_caracter(char c) {
+    lcd_enviar((uint8_t)c, LCD_RS);
+}
+
+void lcd_texto(const char *texto) {
+    while (*texto) {
+        lcd_caracter(*texto++);
+    }
+}
+
+void lcd_numero(uint16_t numero) {
+    char texto[6];
+    uint8_t i = 0;
+
+    do {
+        texto[i++] = '0' + numero % 10;
+        numero /= 10;
+    } while (numero);
+
+    while (i)
+        lcd_caracter(texto[--i]);
+}
+
+void lcd_cursor(uint8_t fila, uint8_t columna) {
+    lcd_comando(0x80 + (fila ? 0x40 : 0) + columna);
+}
+
+void lcd_init(void) {
+    _delay_ms(50);
+
+    lcd_nibble(0x30);
+    _delay_ms(5);
+
+    lcd_nibble(0x30);
+    _delay_us(150);
+
+    lcd_nibble(0x30);
+    lcd_nibble(0x20);
+    lcd_comando(0x28);
+    lcd_comando(0x0C);
+    lcd_comando(0x06);
+    lcd_comando(0x01);
+}
+
+// =====================================
+// PINES
+// =====================================
+
+void pines_init(void) {
+    DDRD &= ~(1 << BOTON);
+    PORTD |= (1 << BOTON);
 
     DDRB |= (1 << LED_VERDE) |
             (1 << LED_ROJO) |
@@ -84,144 +244,308 @@ void pines_init(void) {
                (1 << BUZZER));
 }
 
-// Cambiar estado
-void cambiar_estado(uint8_t nuevo) {
-    estado = nuevo;
+// =====================================
+// BUZZER
+// =====================================
 
-    if (estado == DESARMADO) {
-        uart_texto("Sistema desarmado\r\n");
-    }
-    else if (estado == ARMADO) {
-        uart_texto("Sistema armado\r\n");
-    }
+void buzzer_encender(void) {
+    OCR1A = (uint16_t)(F_CPU / 8UL / 2000UL - 1);
+    OCR1B = OCR1A / 2;
+
+    TCCR1A = (1 << COM1B0);
+    TCCR1B = (1 << WGM12) | (1 << CS11);
 }
 
-// Activar alarma
-void activar_alarma(const char *motivo) {
-    estado = ALARMA;
+void buzzer_apagar(void) {
+    TCCR1A = 0;
+    TCCR1B = 0;
+    PORTB &= ~(1 << BUZZER);
+}
 
-    uart_texto("ALARMA ACTIVADA\r\n");
-    uart_texto("Motivo: ");
-    uart_texto(motivo);
+// =====================================
+// ALARMA
+// =====================================
+
+void activar_alarma(const char *zona) {
+    alarma = 1;
+    silenciado = 0;
+
+    uart_texto("ALARMA:ON;ZONA:");
+    uart_texto(zona);
     uart_texto("\r\n");
 }
 
-// Recibir comandos por UART
+// =====================================
+// PROCESAR COMANDOS
+// =====================================
+
+void procesar_comando(char *comando) {
+
+    if (strcmp(comando, "ARMAR") == 0) {
+        armado = 1;
+        alarma = 0;
+        silenciado = 0;
+
+        uart_texto("Sistema armado\r\n");
+    }
+
+    else if (strcmp(comando, "DESARMAR") == 0) {
+        armado = 0;
+        alarma = 0;
+        silenciado = 0;
+
+        uart_texto("Sistema desarmado\r\n");
+    }
+
+    else if (strcmp(comando, "AUTO") == 0) {
+        modoAuto = 1;
+        uart_texto("Modo automatico\r\n");
+    }
+
+    else if (strcmp(comando, "MANUAL") == 0) {
+        modoAuto = 0;
+        uart_texto("Modo manual\r\n");
+    }
+
+    else if (strcmp(comando, "ALARMA") == 0) {
+        if (armado) {
+            activar_alarma("MANUAL");
+        }
+        else {
+            uart_texto("Primero debe armar\r\n");
+        }
+    }
+
+    else if (strcmp(comando, "SILENCIAR") == 0) {
+        silenciado = 1;
+        uart_texto("Sirena silenciada\r\n");
+    }
+
+    else if (strcmp(comando, "ESTADO") == 0) {
+
+        uart_texto("\r\n--- ESTADO ---\r\n");
+
+        uart_texto("Sistema: ");
+        uart_texto(armado ? "ARMADO\r\n" :
+                            "DESARMADO\r\n");
+
+        uart_texto("Modo: ");
+        uart_texto(modoAuto ? "AUTO\r\n" :
+                             "MANUAL\r\n");
+
+        uart_texto("LDR: ");
+        uart_numero(valorLDR);
+        uart_texto("\r\n");
+
+        uart_texto("Movimiento: ");
+        uart_texto(movimiento ? "SI\r\n" :
+                                "NO\r\n");
+
+        uart_texto("Alarma: ");
+        uart_texto(alarma ? "ACTIVA\r\n" :
+                            "INACTIVA\r\n");
+    }
+
+    else {
+        uart_texto("Comando incorrecto\r\n");
+    }
+}
+
+// =====================================
+// RECIBIR COMANDOS - CORREGIDO
+// =====================================
+
 void recibir_comando(void) {
     static char comando[20];
     static uint8_t indice = 0;
+    static uint8_t descartando = 0;
 
-    if (UCSR0A & (1 << RXC0)) {
-        char dato = UDR0;
+    while (rxHead != rxTail) {
 
-        if (dato == '\n' || dato == '\r') {
-            comando[indice] = '\0';
+        char dato = rxBuffer[rxTail];
+        rxTail = (rxTail + 1) % RX_SIZE;
 
-            if (strcmp(comando, "ARMAR") == 0) {
-                cambiar_estado(ARMADO);
-            }
-            else if (strcmp(comando, "DESARMAR") == 0) {
-                cambiar_estado(DESARMADO);
-            }
-            else if (strcmp(comando, "ESTADO") == 0) {
-                if (estado == DESARMADO)
-                    uart_texto("Estado: DESARMADO\r\n");
-                else if (estado == ARMADO)
-                    uart_texto("Estado: ARMADO\r\n");
-                else
-                    uart_texto("Estado: ALARMA\r\n");
-            }
-            else if (indice > 0) {
-                uart_texto("Comando incorrecto\r\n");
+        // Enter
+        if (dato == '\r' || dato == '\n') {
+
+            if (!descartando && indice > 0) {
+
+                // Eliminar espacios finales
+                while (indice > 0 &&
+                       (comando[indice - 1] == ' ' ||
+                        comando[indice - 1] == '\t')) {
+                    indice--;
+                }
+
+                comando[indice] = '\0';
+
+                if (indice > 0) {
+                    uart_texto("Recibido: [");
+                    uart_texto(comando);
+                    uart_texto("]\r\n");
+
+                    procesar_comando(comando);
+                }
             }
 
             indice = 0;
+            descartando = 0;
         }
-        else if (indice < sizeof(comando) - 1) {
-            comando[indice++] = dato;
-        }
-        else {
-            indice = 0;
+        else if (!descartando) {
+
+            // Ignorar espacios iniciales
+            if ((dato == ' ' || dato == '\t') &&
+                indice == 0) {
+                continue;
+            }
+
+            // Convertir a mayusculas
+            if (dato >= 'a' && dato <= 'z') {
+                dato -= 32;
+            }
+
+            if (indice < sizeof(comando) - 1) {
+                comando[indice++] = dato;
+            }
+            else {
+                indice = 0;
+                descartando = 1;
+
+                uart_texto("Comando demasiado largo\r\n");
+            }
         }
     }
 }
 
-// Control del pulsador de armado
-void controlar_boton(void) {
-    static uint8_t anterior = 0;
-    static uint8_t contador = 0;
-    uint8_t presionado =
-        !(PIND & (1 << BOTON_CONTROL));
+// =====================================
+// SALIDAS
+// =====================================
 
-    // Antirrebote: 3 muestras de 50 ms
-    if (presionado != anterior) {
-        contador++;
-
-        if (contador >= 3) {
-            anterior = presionado;
-            contador = 0;
-
-            if (presionado) {
-                if (estado == DESARMADO) {
-                    cambiar_estado(ARMADO);
-                }
-                else {
-                    cambiar_estado(DESARMADO);
-                }
-            }
-        }
-    }
-    else {
-        contador = 0;
-    }
-}
-
-// Actualizar indicadores
 void actualizar_salidas(void) {
-    if (estado == ARMADO) {
-        PORTB |= (1 << LED_VERDE);
-    }
-    else {
-        PORTB &= ~(1 << LED_VERDE);
-    }
 
-    if (estado == ALARMA) {
-        PORTB |= (1 << LED_ROJO) |
-                 (1 << BUZZER);
+    if (armado)
+        PORTB |= (1 << LED_VERDE);
+    else
+        PORTB &= ~(1 << LED_VERDE);
+
+    if (alarma)
+        PORTB |= (1 << LED_ROJO);
+    else
+        PORTB &= ~(1 << LED_ROJO);
+
+    if (alarma && !silenciado &&
+        contadorBuzzer < 5) {
+        buzzer_encender();
     }
     else {
-        PORTB &= ~((1 << LED_ROJO) |
-                   (1 << BUZZER));
+        buzzer_apagar();
     }
 }
+
+// =====================================
+// LCD
+// =====================================
+
+void actualizar_lcd(void) {
+
+    lcd_cursor(0, 0);
+
+    if (pantalla == 0) {
+
+        if (alarma)
+            lcd_texto("ALARMA ACTIVADA ");
+        else if (armado)
+            lcd_texto("SISTEMA ARMADO  ");
+        else
+            lcd_texto("SIST. DESARMADO");
+
+        lcd_cursor(1, 0);
+
+        if (modoAuto)
+            lcd_texto("MODO: AUTO      ");
+        else
+            lcd_texto("MODO: MANUAL    ");
+    }
+
+    else {
+        lcd_texto("LDR: ");
+        lcd_numero(valorLDR);
+        lcd_texto("        ");
+
+        lcd_cursor(1, 0);
+
+        if (movimiento)
+            lcd_texto("MOVIMIENTO: SI  ");
+        else
+            lcd_texto("MOVIMIENTO: NO  ");
+    }
+}
+
+// =====================================
+// PROGRAMA PRINCIPAL
+// =====================================
 
 int main(void) {
     pines_init();
     uart_init();
     adc_init();
+    i2c_init();
 
-    uart_texto("Sistema de alarma V2\r\n");
-    uart_texto("Comandos: ARMAR, DESARMAR, ESTADO\r\n");
+    // Habilitar interrupciones
+    sei();
+    lcd_init();
+    lcd_cursor(0, 0);
+    lcd_texto("ALARMA ANTIRROBO");
+    lcd_cursor(1, 0);
+    lcd_texto("Sistema listo");
+    uart_texto("\r\nSISTEMA DE ALARMA\r\n");
+    uart_texto("ARMAR, DESARMAR, AUTO\r\n");
+    uart_texto("MANUAL, ALARMA\r\n");
+    uart_texto("SILENCIAR, ESTADO\r\n");
+    _delay_ms(2000);
+    lcd_comando(0x01);
 
     while (1) {
+
+        // Leer sensores
+        valorLDR = leer_ldr();
+        movimiento =
+            !(PIND & (1 << BOTON));
+        // Recibir comandos
         recibir_comando();
-        controlar_boton();
-
-        uint16_t luz = leer_ldr();
-
-        uint8_t movimiento =
-            !(PIND & (1 << SENSOR_MOV));
-
-        if (estado == ARMADO) {
+        // Deteccion automatica
+        if (armado && modoAuto && !alarma) {
             if (movimiento) {
-                activar_alarma("Movimiento detectado");
+                activar_alarma("MOVIMIENTO");
             }
-            else if (luz > LIMITE_LUZ) {
-                activar_alarma("Cambio de iluminacion");
+            else if (valorLDR > UMBRAL_LDR) {
+                activar_alarma("VENTANA");
             }
         }
 
+        // Buzzer intermitente
+        contadorBuzzer++;
+
+        if (contadorBuzzer >= 10)
+            contadorBuzzer = 0;
         actualizar_salidas();
+
+        // Cambiar pantalla cada 2 segundos
+        contadorPantalla++;
+
+        if (contadorPantalla >= 40) {
+            contadorPantalla = 0;
+            pantalla = !pantalla;
+            lcd_comando(0x01);
+        }
+
+        // Actualizar LCD cada 300 ms
+        contadorLCD++;
+
+        if (contadorLCD >= 6) {
+            contadorLCD = 0;
+            actualizar_lcd();
+        }
 
         _delay_ms(50);
     }
