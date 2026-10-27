@@ -21,3 +21,7 @@ El sensor muestra ACC X=0.00 g, ACC Y=0.00 g y ACC Z=1.04 g. El terminal muestra
 ## 04_nivelado_medir.png
 
 Prueba de nivelado documentada en PICSimLab: ACC X=0.00 g, ACC Y=0.00 g, ACC Z=1.00 g y los tres giroscopios en cero. El terminal a 38400 baud muestra R=0.0, P=0.0, F=4, C=4, E=1 (MEDIR) y COLOR=0. Se observa el punto azul en la posicion central elegida por el programa. La placa es Arduino Uno / ATmega328P a 16 MHz. La captura coincide con el resultado esperado para esta condicion estatica; las demas pruebas siguen pendientes.
+
+## 05_combinada_terminal_por_verificar.png
+
+El sensor muestra ACC X=-0.30 g, ACC Y=0.34 g y ACC Z=0.88 g, con giroscopios en cero. Se observa un punto amarillo desplazado en ambos ejes. Sin offsets, estas aceleraciones corresponden aproximadamente a roll +21 grados y pitch +18 grados. Sin embargo, las lineas visibles del terminal indican E=1, COLOR=1 y valores negativos de roll con columna 0, que no coinciden con la matriz. No se puede determinar con esta captura si se trata de historial del terminal o de otra causa. Se conserva como registro de una discrepancia pendiente de comprobar, sin dar por aprobada la prueba combinada. Repetir con sensor quieto, terminal limpio y nuevas lecturas visibles.
