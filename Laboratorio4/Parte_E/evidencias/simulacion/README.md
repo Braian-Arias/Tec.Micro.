@@ -33,3 +33,7 @@ ACC X=-0.34 g, ACC Y=0.00 g y ACC Z=0.88 g, giroscopios en cero y punto verde de
 ## 07_borde_derecho_terminal_por_verificar.png
 
 Se observan ACC X=0.00 g, ACC Y=0.64 g, ACC Z=0.70 g y giroscopios en cero. La matriz muestra un punto rojo en el borde derecho. Sin offsets, las aceleraciones corresponden aproximadamente a roll +42.4 grados y pitch 0 grados. Las lineas visibles del terminal indican R=93.5, P=-16.8, F=2, C=7, E=1 y COLOR=1, sin mensajes de error en esta imagen. Persiste una discrepancia entre lecturas visibles y condicion del sensor; no se confirma su causa. Esta captura registra el punto en el borde, pero no demuestra parpadeo ni pitido, para los cuales hace falta un video con sonido. Tampoco acredita que las lecturas seriales esten actualizadas.
+
+## 08_casi_nivelado_discrepancia.png
+
+El sensor muestra ACC X=0.00 g, ACC Y=0.04 g y ACC Z=1.00 g, con giroscopios en cero. Se observa un punto rojo cerca del centro. Las lineas visibles del terminal indican R=119.1 al inicio y luego R=116.1, P=-16.8, F=2, C=7, E=1 y COLOR=1. Sin offsets, la aceleracion mostrada corresponde aproximadamente a roll +2.3 grados y pitch 0 grados, dentro de la zona muerta de 3 grados. Las indicaciones del sensor, matriz y terminal no son coherentes entre si. Se conserva como evidencia de diagnostico, sin clasificarla como prueba aprobada. Pendiente confirmar el archivo de firmware cargado, la calibracion y que se esten observando las lineas nuevas del terminal.
