@@ -1,4 +1,4 @@
-```c
+
 #define F_CPU 16000000UL
 
 #include <avr/io.h>
@@ -92,4 +92,3 @@ char teclado4x4_leerTecla(void)
 
 	return tecla;
 }
-```
