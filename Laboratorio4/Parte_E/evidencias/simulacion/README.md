@@ -29,3 +29,7 @@ El sensor muestra ACC X=-0.30 g, ACC Y=0.34 g y ACC Z=0.88 g, con giroscopios en
 ## 06_terminal_error_lectura.png
 
 ACC X=-0.34 g, ACC Y=0.00 g y ACC Z=0.88 g, giroscopios en cero y punto verde desplazado. El terminal visible alterna MPU6050 OK con ERROR: sensor sin lectura valida, e imprime R=93.5, P=-16.8, F=4, C=4, E=1 y COLOR=1. Estas lecturas no coinciden con la condicion mostrada por sensor y matriz. Sin offsets se esperan roll aproximadamente 0 grados y pitch aproximadamente +21 grados. La imagen documenta mensajes de fallo, pero no permite distinguir si pertenecen al historial del terminal o a la ejecucion actual. Pendiente repetir con terminal limpio y observar nuevas lineas durante varios segundos. No se clasifica como prueba aprobada del eje Y ni de recuperacion ante fallos.
+
+## 07_borde_derecho_terminal_por_verificar.png
+
+Se observan ACC X=0.00 g, ACC Y=0.64 g, ACC Z=0.70 g y giroscopios en cero. La matriz muestra un punto rojo en el borde derecho. Sin offsets, las aceleraciones corresponden aproximadamente a roll +42.4 grados y pitch 0 grados. Las lineas visibles del terminal indican R=93.5, P=-16.8, F=2, C=7, E=1 y COLOR=1, sin mensajes de error en esta imagen. Persiste una discrepancia entre lecturas visibles y condicion del sensor; no se confirma su causa. Esta captura registra el punto en el borde, pero no demuestra parpadeo ni pitido, para los cuales hace falta un video con sonido. Tampoco acredita que las lecturas seriales esten actualizadas.
