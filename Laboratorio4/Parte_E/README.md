@@ -8,7 +8,7 @@ Nivel con ATmega328P a 16 MHz, MPU6050 y matriz RGB WS2812B de 8 x 8.
 - `evidencias/maquina_de_estados.png`: diagrama de estados.
 - `evidencias/conexiones.png`: esquema de conexiones.
 - `simulacion/Problema_E.pzw`: proyecto para PICSimLab 0.9.2, con el firmware compilado a partir de este main.c.
-- `evidencias/captura_compilacion.png`: pendiente; se agrega despues de compilar en Microchip Studio.
+- `evidencias/captura_compilacion.png`: captura real aportada por Bruno: Build succeeded, 0 failed.
 
 ## Compilar
 
@@ -22,4 +22,4 @@ Para la posicion nivelada ajustar ax=0, ay=0, az=1 g; debe verse un punto azul e
 
 ## Estado de las evidencias
 
-El codigo compilo con AVR-GCC de Microchip Studio y paso 21 comprobaciones automatizadas del firmware. El paquete PICSimLab se verifico estructuralmente; falta probarlo dentro de PICSimLab y registrar los resultados observados. Los diagramas documentan el diseno; no son capturas de una ejecucion. La captura de compilacion y las evidencias del montaje fisico estan pendientes.
+El codigo compilo con AVR-GCC de Microchip Studio y paso 21 comprobaciones automatizadas del firmware. El paquete PICSimLab se verifico estructuralmente; falta probarlo dentro de PICSimLab y registrar los resultados observados. Los diagramas documentan el diseno; no son capturas de una ejecucion. Se incluye la captura real de compilacion aportada por Bruno. Muestra configuracion Debug con -Og, 8554 bytes de programa y 576 bytes de RAM. El firmware preparado para PICSimLab y las 21 pruebas automatizadas corresponden a la compilacion con -Os; la captura no demuestra la ejecucion del simulador. Las evidencias del montaje fisico siguen pendientes.
