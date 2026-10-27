@@ -13,3 +13,7 @@ Pendientes: nivelado en E=1, inclinacion en X, Y y combinada, secuencia HOLD, ca
 ## 02_punto_verde.png
 
 Se observa un punto verde desplazado en la matriz. El MPU6050 muestra aproximadamente ACC X=-0.24 g, ACC Y=-0.80 g y ACC Z=-0.04 g. El terminal no esta desplegado, por lo que no pueden verificarse el estado E ni los angulos reportados. Se conserva como observacion de la matriz; no se clasifica como nivelado ni como una prueba controlada de inclinacion en un solo eje.
+
+## 03_sensor_nivelado_en_hold.png
+
+El sensor muestra ACC X=0.00 g, ACC Y=0.00 g y ACC Z=1.04 g. El terminal muestra R=0.0, P=0.0, F=4, C=4, E=2 (HOLD) y COLOR=0. No se distingue un punto encendido en la matriz. Los giroscopios muestran -80, -95 y -95. Esta captura registra una condicion a revisar; no acredita el nivelado en modo MEDIR. La siguiente comprobacion debe salir de HOLD y verificar E=1 junto con la visualizacion de la matriz.
