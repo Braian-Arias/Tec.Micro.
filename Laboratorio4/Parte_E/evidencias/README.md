@@ -76,7 +76,6 @@ Utilizado para generar avisos sonoros.
 | Alimentación | Según especificaciones del buzzer |
 | GND | GND común |
 
-**Importante:** Si el consumo del buzzer supera la capacidad admisible del pin, utilizar un transistor de control.
 
 ## 6. Terminal serie (UART)
 
