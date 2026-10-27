@@ -1,0 +1,26 @@
+ARDUINO UNO                         COMPONENTES
+
+5V  ────────────────────────────── VCC MPU6050 GY-521
+GND ───────────────┬────────────── GND MPU6050
+                   ├────────────── GND matriz
+                   ├────────────── GND pulsador HOLD
+                   ├────────────── GND pulsador CALIBRAR
+                   ├────────────── GND buzzer
+                   └────────────── GND fuente externa
+
+A4 / SDA ───────────────────────── SDA MPU6050
+A5 / SCL ───────────────────────── SCL MPU6050
+GND      ───────────────────────── AD0 MPU6050
+
+D2 ───────────────── pulsador HOLD ───────── GND
+D3 ───────────── pulsador CALIBRAR ───────── GND
+
+D6 ───── resistencia 330–470 Ω ──────────── DIN matriz
+Fuente externa +5V ───────────────────────── 5V matriz
+Fuente externa GND ───────────────────────── GND matriz
+
+D8 ───────────────────────────────────────── + buzzer activo
+GND ──────────────────────────────────────── − buzzer activo
+
+D1 / TX ──────────────────────────────────── RX terminal
+D0 / RX ←─────────────────────────────────── TX terminal opcional
