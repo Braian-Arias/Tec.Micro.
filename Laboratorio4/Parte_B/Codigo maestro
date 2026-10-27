@@ -1,0 +1,427 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdint.h>
+#include <stdio.h>
+
+// Comandos de comunicacion SPI
+#define CMD_START       1
+#define CMD_STOP        2
+#define CMD_EMERGENCIA  3
+#define CMD_RESET       4
+#define CMD_VELOCIDAD   5
+#define CMD_PISTON      6
+
+// Configuracion
+#define TEMP_LIMITE     40
+#define LDR_DETECTA     420
+#define LDR_LIBERA      550
+#define BOTON           PD2
+#define LCD_RS          PD3
+#define LCD_E           PB0
+#define DHT_PIN         PB1
+#define SPI_SS          PB2
+
+volatile uint32_t tiempoMs = 0;
+
+uint8_t marcha = 0;
+uint8_t emergencia = 0;
+uint8_t piezaDetectada = 0;
+uint8_t velocidad = 0;
+uint8_t temperatura = 255;
+uint16_t piezas = 0;
+
+// Temporizador de 1 ms
+ISR(TIMER0_COMPA_vect) {
+    tiempoMs++;
+}
+
+uint32_t millisAVR(void) {
+    uint32_t t;
+    uint8_t sreg = SREG;
+
+    cli();
+    t = tiempoMs;
+    SREG = sreg;
+
+    return t;
+}
+
+void timer_init(void) {
+    TCCR0A = (1 << WGM01);
+    TCCR0B = (1 << CS01) | (1 << CS00);
+    OCR0A = 249;
+    TIMSK0 = (1 << OCIE0A);
+}
+
+// Comunicacion UART
+void uart_init(void) {
+    UBRR0H = 0;
+    UBRR0L = 103; // 9600 baudios a 16 MHz
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+void uart_texto(const char *texto) {
+    while (*texto) {
+        while (!(UCSR0A & (1 << UDRE0)));
+        UDR0 = *texto++;
+    }
+}
+
+// Conversion analogica
+void adc_init(void) {
+    ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN)
+           | (1 << ADPS2)
+           | (1 << ADPS1)
+           | (1 << ADPS0);
+}
+
+uint16_t adc_leer(uint8_t canal) {
+    ADMUX = (ADMUX & 0xF0) | (canal & 0x0F);
+    ADCSRA |= (1 << ADSC);
+
+    while (ADCSRA & (1 << ADSC));
+
+    return ADC;
+}
+
+// SPI maestro de hardware
+void spi_init(void) {
+    DDRB |= (1 << PB2)
+          | (1 << PB3)
+          | (1 << PB5);
+    DDRB &= ~(1 << PB4);
+    PORTB |= (1 << SPI_SS);
+
+    // Maestro, modo 0, MSB primero
+    // Frecuencia SCK: 125 kHz
+    SPCR = (1 << SPE)
+         | (1 << MSTR)
+         | (1 << SPR1)
+         | (1 << SPR0);
+}
+
+uint8_t spi_byte(uint8_t dato) {
+    SPDR = dato;
+
+    while (!(SPSR & (1 << SPIF)));
+
+    return SPDR;
+}
+
+void enviar_comando(uint8_t comando, uint8_t valor) {
+    PORTB &= ~(1 << SPI_SS);
+    _delay_us(20);
+
+    spi_byte(comando);
+    spi_byte(valor);
+
+    _delay_us(50);
+    PORTB |= (1 << SPI_SS);
+}
+
+// LCD de 16x2 en modo 4 bits
+void lcd_pulso(void) {
+    PORTB |= (1 << LCD_E);
+    _delay_us(2);
+    PORTB &= ~(1 << LCD_E);
+    _delay_us(50);
+}
+
+void lcd_nibble(uint8_t dato) {
+    PORTD = (PORTD & 0x0F) | ((dato & 0x0F) << 4);
+    lcd_pulso();
+}
+
+void lcd_enviar(uint8_t dato, uint8_t rs) {
+    if (rs)
+        PORTD |= (1 << LCD_RS);
+    else
+        PORTD &= ~(1 << LCD_RS);
+
+    lcd_nibble(dato >> 4);
+    lcd_nibble(dato);
+}
+
+void lcd_cmd(uint8_t dato) {
+    lcd_enviar(dato, 0);
+
+    if (dato == 0x01 || dato == 0x02)
+        _delay_ms(2);
+}
+
+void lcd_char(char letra) {
+    lcd_enviar((uint8_t)letra, 1);
+}
+
+void lcd_texto(const char *texto) {
+    while (*texto)
+        lcd_char(*texto++);
+}
+
+void lcd_pos(uint8_t fila, uint8_t columna) {
+    uint8_t direccion = fila ? 0x40 : 0x00;
+    lcd_cmd(0x80 | (direccion + columna));
+}
+
+void lcd_init(void) {
+    DDRD |= (1 << PD3) | (0xF0);
+    DDRB |= (1 << LCD_E);
+    PORTB &= ~(1 << LCD_E);
+    PORTD &= ~(1 << LCD_RS);
+    _delay_ms(40);
+    lcd_nibble(0x03);
+    _delay_ms(5);
+    lcd_nibble(0x03);
+    _delay_us(150);
+    lcd_nibble(0x03);
+    lcd_nibble(0x02);
+    lcd_cmd(0x28);
+    lcd_cmd(0x0C);
+    lcd_cmd(0x06);
+    lcd_cmd(0x01);
+}
+
+void lcd_actualizar(void) {
+    char linea[17];
+
+    lcd_pos(0, 0);
+
+    if (temperatura == 255) {
+        snprintf(linea, sizeof(linea),
+                 "TEMP:--C P:%4u", piezas);
+    } else {
+        snprintf(linea, sizeof(linea),
+                 "TEMP:%2uC P:%4u",
+                 temperatura, piezas);
+    }
+
+    lcd_texto(linea);
+    lcd_texto("                ");
+
+    lcd_pos(1, 0);
+
+    if (emergencia) {
+        lcd_texto("EMERGENCIA      ");
+    } else if (marcha) {
+        snprintf(linea, sizeof(linea),
+                 "MARCHA PWM:%3u", velocidad);
+        lcd_texto(linea);
+        lcd_texto("                ");
+    } else {
+        lcd_texto("PROCESO DETENIDO");
+    }
+}
+
+// DHT11: esperar cambio de nivel
+uint8_t esperar_nivel(uint8_t nivel) {
+    uint8_t contador = 0;
+
+    while (((PINB & (1 << DHT_PIN)) != 0) == nivel) {
+        _delay_us(1);
+        contador++;
+
+        if (contador > 100)
+            return 0;
+    }
+
+    return 1;
+}
+
+// Leer temperatura del DHT11
+uint8_t dht11_leer(uint8_t *temp) {
+    uint8_t datos[5] = {0, 0, 0, 0, 0};
+
+    // Solicitud de lectura
+    DDRB |= (1 << DHT_PIN);
+    PORTB &= ~(1 << DHT_PIN);
+    _delay_ms(20);
+
+    DDRB &= ~(1 << DHT_PIN);
+    PORTB |= (1 << DHT_PIN);
+    _delay_us(30);
+
+    // Respuesta inicial del sensor
+    if (!esperar_nivel(1)) return 0;
+    if (!esperar_nivel(0)) return 0;
+    if (!esperar_nivel(1)) return 0;
+
+    // Leer 40 bits
+    for (uint8_t i = 0; i < 40; i++) {
+        if (!esperar_nivel(0))
+            return 0;
+
+        _delay_us(40);
+
+        uint8_t bit = (PINB & (1 << DHT_PIN)) ? 1 : 0;
+
+        datos[i / 8] <<= 1;
+        datos[i / 8] |= bit;
+
+        if (bit) {
+            if (!esperar_nivel(1))
+                return 0;
+        }
+    }
+
+    uint8_t suma = datos[0] + datos[1]
+                 + datos[2] + datos[3];
+
+    if (suma != datos[4])
+        return 0;
+
+    *temp = datos[2];
+    return 1;
+}
+
+void activar_emergencia(void) {
+    if (!emergencia) {
+        emergencia = 1;
+        marcha = 0;
+
+        enviar_comando(CMD_EMERGENCIA, 1);
+        uart_texto("EMERGENCIA ACTIVADA\r\n");
+    }
+}
+
+int main(void) {
+    uint32_t tADC = 0;
+    uint32_t tDHT = 0;
+    uint32_t tLCD = 0;
+    uint32_t tBoton = 0;
+
+    uint8_t botonAnterior = 1;
+    uint8_t erroresDHT = 0;
+
+    // Pulsador entre PD2 y GND
+    DDRD &= ~(1 << BOTON);
+    PORTD |= (1 << BOTON);
+
+    timer_init();
+    uart_init();
+    adc_init();
+    spi_init();
+    lcd_init();
+
+    sei();
+
+    uart_texto("MAESTRO INICIADO\r\n");
+    uart_texto("E: Emergencia / R: Reset\r\n");
+
+    lcd_pos(0, 0);
+    lcd_texto("BANDA INDUSTRIAL");
+    lcd_pos(1, 0);
+    lcd_texto("INICIANDO...    ");
+
+    _delay_ms(1000);
+
+    enviar_comando(CMD_STOP, 0);
+
+    while (1) {
+        uint32_t ahora = millisAVR();
+
+        // Pulsador Start/Stop con antirrebote
+        uint8_t boton =
+            (PIND & (1 << BOTON)) ? 1 : 0;
+
+        if (!boton && botonAnterior &&
+            (ahora - tBoton >= 150)) {
+
+            tBoton = ahora;
+
+            if (!emergencia) {
+                marcha = !marcha;
+
+                if (marcha) {
+                    enviar_comando(CMD_START, 1);
+                    uart_texto("START\r\n");
+                } else {
+                    enviar_comando(CMD_STOP, 0);
+                    uart_texto("STOP\r\n");
+                }
+            }
+        }
+
+        botonAnterior = boton;
+
+        // Comandos por UART
+        if (UCSR0A & (1 << RXC0)) {
+            char letra = UDR0;
+
+            if (letra == 'E' || letra == 'e') {
+                activar_emergencia();
+            }
+
+            if (letra == 'R' || letra == 'r') {
+                emergencia = 0;
+                marcha = 0;
+                erroresDHT = 0;
+
+                enviar_comando(CMD_RESET, 0);
+                uart_texto("SISTEMA REARMADO\r\n");
+            }
+        }
+
+        // Leer potenciometro y LDR
+        if (ahora - tADC >= 250) {
+            tADC = ahora;
+
+            uint16_t potenciometro = adc_leer(1);
+            uint16_t ldr = adc_leer(0);
+
+            velocidad = potenciometro >> 2;
+
+            if (marcha && !emergencia) {
+                enviar_comando(CMD_VELOCIDAD, velocidad);
+
+                // Detectar una nueva pieza
+                if (!piezaDetectada && ldr < LDR_DETECTA) {
+                    piezaDetectada = 1;
+                    piezas++;
+
+                    enviar_comando(CMD_PISTON, 1);
+                    uart_texto("PIEZA DETECTADA\r\n");
+                }
+            }
+
+            // Rearmar deteccion cuando la pieza sale
+            if (ldr > LDR_LIBERA)
+                piezaDetectada = 0;
+        }
+
+        // Leer DHT11 cada 2 segundos
+        if (ahora - tDHT >= 2000) {
+            tDHT = ahora;
+
+            uint8_t lectura;
+
+            if (dht11_leer(&lectura)) {
+                temperatura = lectura;
+                erroresDHT = 0;
+
+                if (temperatura > TEMP_LIMITE)
+                    activar_emergencia();
+            } else {
+                temperatura = 255;
+
+                if (erroresDHT < 3)
+                    erroresDHT++;
+
+                // Tres fallos consecutivos de lectura
+                if (erroresDHT >= 3)
+                    activar_emergencia();
+            }
+        }
+
+        // Mostrar datos en LCD
+        if (ahora - tLCD >= 500) {
+            tLCD = ahora;
+            lcd_actualizar();
+        }
+
+        _delay_ms(5);
+    }
+}
