@@ -4,7 +4,7 @@
  * Mantiene I2C, matriz RGB, HOLD, calibracion EEPROM y buzzer.
  */
 
-/* ==================== config.h ==================== */
+/* ==================== config ==================== */
 #ifndef CONFIG_H
 #define CONFIG_H
 #ifndef F_CPU
@@ -21,7 +21,7 @@
 #endif
 
 
-/* ==================== UART.h ==================== */
+/* ==================== UART ==================== */
 #ifndef UART_H
 #define UART_H
 #include <stdint.h>
@@ -33,7 +33,7 @@ void uart_decimal(float valor);
 #endif
 
 
-/* ==================== I2C.h ==================== */
+/* ==================== I2C ==================== */
 #ifndef I2C_H
 #define I2C_H
 #include <stdint.h>
@@ -43,7 +43,7 @@ uint8_t i2c_leer_regs(uint8_t dir, uint8_t reg, uint8_t *datos, uint8_t n);
 #endif
 
 
-/* ==================== MPU6050.h ==================== */
+/* ==================== MPU6050 ==================== */
 #ifndef MPU6050_H
 #define MPU6050_H
 #include <stdint.h>
@@ -56,7 +56,7 @@ uint8_t mpu_angulos(const Medicion *m, float *roll, float *pitch);
 #endif
 
 
-/* ==================== TIEMPO.h ==================== */
+/* ==================== TIEMPO ==================== */
 #ifndef TIEMPO_H
 #define TIEMPO_H
 #include <stdint.h>
@@ -65,7 +65,7 @@ uint32_t tiempo_ms(void);
 #endif
 
 
-/* ==================== NIVEL.h ==================== */
+/* ==================== NIVEL ==================== */
 #ifndef NIVEL_H
 #define NIVEL_H
 #include <stdint.h>
@@ -79,7 +79,7 @@ uint8_t nivel_borde(Burbuja b);
 #endif
 
 
-/* ==================== MATRIZ.h ==================== */
+/* ==================== MATRIZ ==================== */
 #ifndef MATRIZ_H
 #define MATRIZ_H
 #include <stdint.h>
@@ -89,7 +89,7 @@ void matriz_mostrar(Burbuja b, uint8_t visible);
 #endif
 
 
-/* ==================== MEMORIA.h ==================== */
+/* ==================== MEMORIA ==================== */
 #ifndef MEMORIA_H
 #define MEMORIA_H
 #include <stdint.h>
@@ -98,7 +98,7 @@ void memoria_guardar(float x, float y);
 #endif
 
 
-/* ==================== BOTONES.h ==================== */
+/* ==================== BOTONES ==================== */
 #ifndef BOTONES_H
 #define BOTONES_H
 #include <stdint.h>
@@ -109,7 +109,7 @@ uint8_t botones_eventos(uint32_t ahora);
 #endif
 
 
-/* ==================== UART.c ==================== */
+/* ==================== UART ==================== */
 /* Adaptado de UART.c proporcionado por el estudiante (material del curso). */
 #include <avr/io.h>
 #include <stdlib.h>
@@ -141,7 +141,7 @@ void uart_decimal(float valor) {
 }
 
 
-/* ==================== I2C.c ==================== */
+/* ==================== I2C ==================== */
 
 #include <avr/io.h>
 #include <util/delay.h>
@@ -204,7 +204,7 @@ uint8_t i2c_leer_regs(uint8_t dir, uint8_t reg, uint8_t *datos, uint8_t n) {
 }
 
 
-/* ==================== MPU6050.c ==================== */
+/* ==================== MPU6050 ==================== */
 
 #include <math.h>
 #include <util/delay.h>
@@ -240,7 +240,7 @@ uint8_t mpu_angulos(const Medicion *m, float *roll, float *pitch) {
 }
 
 
-/* ==================== TIEMPO.c ==================== */
+/* ==================== TIEMPO ==================== */
 #include <avr/io.h>
 
 static uint16_t tiempo_anterior, resto;
@@ -265,7 +265,7 @@ uint32_t tiempo_ms(void) {
 }
 
 
-/* ==================== NIVEL.c ==================== */
+/* ==================== NIVEL ==================== */
 
 #include <math.h>
 
@@ -312,7 +312,7 @@ uint8_t nivel_borde(Burbuja b) {
 }
 
 
-/* ==================== MATRIZ.c ==================== */
+/* ==================== MATRIZ ==================== */
 /* WS2812B: 64 pixeles, GRB, MSB primero, salida PD6 (D6).
    C para preparar la imagen; ASM solo para el tiempo de cada bit,
    como se explica en la presentacion 12 del curso. */
@@ -388,7 +388,7 @@ void matriz_mostrar(Burbuja b, uint8_t visible) {
 
 
 
-/* ==================== MEMORIA.c ==================== */
+/* ==================== MEMORIA ==================== */
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -439,7 +439,7 @@ void memoria_guardar(float x, float y) {
 }
 
 
-/* ==================== BOTONES.c ==================== */
+/* ==================== BOTONES ==================== */
 #include <avr/io.h>
 
 static uint8_t boton_anterior[2] = {1, 1}, estable[2] = {1, 1};
@@ -462,7 +462,7 @@ uint8_t botones_eventos(uint32_t ahora) {
 }
 
 
-/* ==================== main.c ==================== */
+/* ==================== main ==================== */
 
 #include <avr/io.h>
 #include <math.h>
