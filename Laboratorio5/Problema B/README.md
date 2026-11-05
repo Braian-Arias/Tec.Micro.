@@ -2,12 +2,13 @@ Poner todo lo que falta aca:
 
 Entregable B
 Cada grupo deberá presentar:
-● Código fuente del firmware.
-● Archivo .aia de App Inventor.
-● Diagrama de comunicación.
-● Descripción del protocolo de tramas.
-● Evidencias de comunicación bidireccional.
-● Prueba del WDT como despertador.
-● Prueba del WDT como mecanismo de reset.
-● Demostración de los estados Sleep.
-● Video del sistema funcionando.
+
+1) Código fuente del firmware.
+2) Archivo .aia de App Inventor.
+3) Diagrama de comunicación.
+4) Descripción del protocolo de tramas.
+5) Evidencias de comunicación bidireccional.
+6) Prueba del WDT como despertador.
+7) Prueba del WDT como mecanismo de reset.
+8) Demostración de los estados Sleep.
+9) Video del sistema funcionando.
