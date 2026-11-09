@@ -3,7 +3,7 @@ Poner todo lo que falta aca:
 Entregable B
 Cada grupo deberá presentar:
 
-1) Código fuente del firmware.
+-
 2) Archivo .aia de App Inventor.
 3) Diagrama de comunicación.
 4) Descripción del protocolo de tramas.
