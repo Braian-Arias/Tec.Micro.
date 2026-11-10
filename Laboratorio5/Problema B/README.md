@@ -4,7 +4,7 @@ Entregable B
 Cada grupo deberá presentar:
 
 -
-2) Archivo .aia de App Inventor.
+2) [Archivo .aia de App Inventor](app/Laboratorio5_ProblemaB.aia) ([instrucciones](app/README.md)).
 3) [Diagrama de comunicación](diagrama_comunicacion.md).
 4) [Descripción del protocolo de tramas](protocolo_tramas.md).
 5) Evidencias de comunicación bidireccional.
