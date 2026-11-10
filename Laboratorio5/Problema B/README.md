@@ -9,6 +9,6 @@ Cada grupo deberá presentar:
 4) [Descripción del protocolo de tramas](protocolo_tramas.md).
 5) Evidencias de comunicación bidireccional.
 6) Prueba del WDT como despertador.
-7) Prueba del WDT como mecanismo de reset.
+7) [Prueba del WDT como mecanismo de reset](wdt_reset/README.md) (firmware y proyecto de simulación preparados; evidencia experimental pendiente).
 8) Demostración de los estados Sleep.
 9) Video del sistema funcionando.
