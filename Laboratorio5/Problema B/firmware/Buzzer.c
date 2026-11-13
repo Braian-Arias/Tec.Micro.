@@ -28,7 +28,7 @@ void reproducir_nota(uint16_t frecuencia)
 	// Detener Timer2 antes de cambiar la frecuencia
 	TCCR2B = 0;
 
-	// Modo CTC y conmutación de OC2A
+	// Modo CTC y conmutaciÃ³n de OC2A
 	TCCR2A = (1 << COM2A0) | (1 << WGM21);
 
 	// Prescaler 128
@@ -43,7 +43,7 @@ void reproducir_nota(uint16_t frecuencia)
 	OCR2A = (uint8_t)comparacion;
 	TCNT2 = 0;
 
-	// Limpiar bandera de comparación pendiente
+	// Limpiar bandera de comparaciÃ³n pendiente
 	TIFR2 = (1 << OCF2A);
 
 	// Iniciar Timer2 con prescaler 128
@@ -58,4 +58,21 @@ void buzzer_detener(void)
 
 	// Desconectar OC2A y llevar PB3 a nivel bajo
 	PORTB &= ~(1 << PB3);
+}
+// Activar el sonido
+void buzzer_Activar(void)
+{
+	// Habilitar el reloj del Timer2
+	PRR &= ~(1 << PRTIM2);
+
+	// Configurar PB3 como salida
+	DDRB |= (1 << PB3);
+
+	// Detener y limpiar Timer2
+	TCCR2A = 0;
+	TCCR2B = 0;
+	TCNT2 = 0;
+
+	// Reproducir nota DO
+	reproducir_nota(NOTA_DO2);
 }
