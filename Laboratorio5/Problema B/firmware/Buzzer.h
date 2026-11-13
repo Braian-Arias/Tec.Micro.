@@ -16,5 +16,6 @@
 void buzzer_inicializar(void);
 void reproducir_nota(uint16_t frecuencia);
 void buzzer_detener(void);
+void buzzer_Activar(void);
 
 #endif
