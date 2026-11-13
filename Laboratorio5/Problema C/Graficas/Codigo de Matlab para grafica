@@ -1,0 +1,221 @@
+
+clc;
+clear;
+close all;
+
+% ============================================
+% LABORATORIO 5 - MONITOREO EN TIEMPO REAL
+% ARDUINO UNO - COM5 - 9600 BAUDIOS
+% ============================================
+
+puerto = "COM5";
+baudios = 9600;
+duracion = 60;       % Duracion de la grafica (s)
+intervalo = 0.10;    % Actualizacion visual (s)
+
+% ============================================
+% CONEXION SERIAL
+% ============================================
+
+disp("Buscando Arduino...");
+
+disp(serialportlist("available"));
+
+try
+    arduino = serialport(puerto, baudios);
+    configureTerminator(arduino, "LF");
+    arduino.Timeout = 0.5;
+
+    pause(2);
+    flush(arduino);
+
+    disp("Arduino conectado correctamente en COM5");
+
+catch ME
+    error("Error de conexion: %s", ME.message);
+end
+
+% ============================================
+% CREAR GRAFICA
+% ============================================
+
+fig = figure( ...
+    'Name', 'Laboratorio 5 - Consumo en vivo', ...
+    'NumberTitle', 'off');
+
+ax = axes(fig);
+hold(ax, 'on');
+grid(ax, 'on');
+
+xlabel(ax, 'Tiempo (s)');
+ylabel(ax, 'Corriente de referencia (mA)');
+title(ax, 'Esperando datos del Arduino...');
+
+xlim(ax, [0 duracion]);
+ylim(ax, [0 25]);
+
+% Marcas de las transiciones programadas
+xline(ax, 10, '--', '10 s');
+xline(ax, 30, '--', '30 s');
+
+grafica = animatedline(ax, ...
+    'Color', 'b', ...
+    'LineWidth', 2);
+
+% ============================================
+% VARIABLES
+% ============================================
+
+tiempos = [];
+corrientes = [];
+estados = strings(0, 1);
+
+estadoActual = "SIN DATOS";
+corrienteActual = NaN;
+
+ultimoEstado = "";
+ultimaCorriente = NaN;
+
+inicio = tic;
+
+disp("Esperando datos enviados por UART...");
+
+% ============================================
+% BUCLE PRINCIPAL
+% ============================================
+
+while isgraphics(fig) && toc(inicio) < duracion
+
+    tiempoActual = toc(inicio);
+
+    % Procesar todos los mensajes disponibles
+    while arduino.NumBytesAvailable > 0
+
+        try
+            mensaje = strtrim(readline(arduino));
+
+            % Formato esperado:
+            % tiempo_ms,ESTADO,corriente_mA
+            %
+            % Ejemplo:
+            % 10000,STANDBY,20.70
+
+            partes = split(mensaje, ",");
+
+            if numel(partes) ~= 3
+                continue;
+            end
+
+            estadoLeido = strtrim(partes(2));
+            corrienteLeida = str2double(partes(3));
+
+            % Validar datos recibidos
+            estadosValidos = ...
+                ["ACTIVO", "STANDBY", "APAGADO"];
+
+            if ~any(estadoLeido == estadosValidos)
+                continue;
+            end
+
+            if ~isfinite(corrienteLeida)
+                continue;
+            end
+
+            estadoActual = estadoLeido;
+            corrienteActual = corrienteLeida;
+
+            % Mostrar cambios de estado
+            if estadoActual ~= ultimoEstado
+                fprintf( ...
+                    '%.1f s | %s | %.2f mA\n', ...
+                    tiempoActual, ...
+                    char(estadoActual), ...
+                    corrienteActual);
+
+                ultimoEstado = estadoActual;
+            end
+
+        catch
+            % Ignorar mensajes incompletos
+            break;
+        end
+
+    end
+
+    % ========================================
+    % ACTUALIZAR GRAFICA
+    % ========================================
+
+    if isfinite(corrienteActual)
+
+        % Dibujar transicion vertical
+        if isfinite(ultimaCorriente) && ...
+                corrienteActual ~= ultimaCorriente
+
+            addpoints( ...
+                grafica, ...
+                tiempoActual, ...
+                ultimaCorriente);
+        end
+
+        % Dibujar lectura actual
+        addpoints( ...
+            grafica, ...
+            tiempoActual, ...
+            corrienteActual);
+
+        % Guardar datos
+        tiempos(end+1, 1) = tiempoActual;
+        corrientes(end+1, 1) = corrienteActual;
+        estados(end+1, 1) = estadoActual;
+
+        ultimaCorriente = corrienteActual;
+
+        % Mostrar estado actual
+        title(ax, sprintf( ...
+            'Estado: %s | Corriente ref.: %.2f mA', ...
+            char(estadoActual), corrienteActual));
+
+        drawnow limitrate;
+
+    else
+        drawnow limitrate;
+    end
+
+    pause(intervalo);
+
+end
+
+% ============================================
+% GUARDAR CSV
+% ============================================
+
+if ~isempty(tiempos)
+
+    datos = table( ...
+        tiempos, ...
+        estados, ...
+        corrientes, ...
+        'VariableNames', { ...
+        'Tiempo_s', ...
+        'Estado', ...
+        'Corriente_referencia_mA'});
+
+    writetable(datos, 'Laboratorio5_datos.csv');
+
+    disp("CSV guardado: Laboratorio5_datos.csv");
+
+else
+
+    disp("No se recibieron datos validos.");
+    disp("Verificar firmware UART y COM5.");
+
+end
+
+% ============================================
+% FINALIZAR
+% ============================================
+
+clear arduino;
+
+disp("Monitoreo finalizado.");
