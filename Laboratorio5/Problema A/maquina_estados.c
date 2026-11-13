@@ -17,6 +17,7 @@ void fsm_inicializar(uint32_t tiempo_actual)
 void fsm_actualizar(uint32_t tiempo_actual, uint8_t actividad_usuario)
 {
 	// Cualquier pulso en el boton vuelve al estado anterior 
+	// activo <- standby <- apagado
 	if (actividad_usuario)
 	{
 		ultima_actividad_ms = tiempo_actual;
