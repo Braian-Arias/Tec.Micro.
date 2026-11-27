@@ -1,0 +1,236 @@
+#define F_CPU 16000000UL
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/atomic.h>
+#include <stdint.h>
+
+// =================================
+// VARIABLES DE LOS SERVOS
+// =================================
+
+uint8_t brazo = 90;
+uint8_t pinza = 90;
+
+volatile uint16_t pulsoBrazo = 3000;
+volatile uint16_t pulsoPinza = 3000;
+
+uint16_t tiempoBrazo;
+uint16_t tiempoPinza;
+
+uint8_t etapa = 0;
+
+// =================================
+// BLUETOOTH - 38400 BAUDIOS
+// =================================
+
+void UART_init(void)
+{
+    UBRR0H = 0;
+    UBRR0L = 25;
+
+    UCSR0A = 0;
+    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+// =================================
+// ACTUALIZAR SERVOS
+// =================================
+
+void actualizarServos(void)
+{
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        pulsoBrazo = 2000 +
+            ((uint32_t)brazo * 2000 / 180);
+
+        pulsoPinza = 2000 +
+            ((uint32_t)pinza * 2000 / 180);
+    }
+}
+
+// =================================
+// TIMER1 PARA LOS SERVOS
+// =================================
+
+void Timer1_init(void)
+{
+    DDRD |= (1 << PD5) | (1 << PD6);
+
+    PORTD &= ~((1 << PD5) | (1 << PD6));
+
+    TCCR1A = 0;
+
+    TCCR1B = (1 << WGM12) |
+             (1 << CS11);
+
+    TCNT1 = 0;
+    OCR1A = 100;
+
+    TIMSK1 = (1 << OCIE1A);
+}
+
+// =================================
+// INTERRUPCION TIMER1
+// =================================
+
+ISR(TIMER1_COMPA_vect)
+{
+    switch (etapa)
+    {
+        case 0:
+
+            tiempoBrazo = pulsoBrazo;
+            tiempoPinza = pulsoPinza;
+
+            PORTD |= (1 << PD5);
+
+            OCR1A = tiempoBrazo - 1;
+
+            etapa = 1;
+            break;
+
+        case 1:
+
+            PORTD &= ~(1 << PD5);
+            PORTD |= (1 << PD6);
+
+            OCR1A = tiempoPinza - 1;
+
+            etapa = 2;
+            break;
+
+        case 2:
+
+            PORTD &= ~(1 << PD6);
+
+            OCR1A = 40000 -
+                    tiempoBrazo -
+                    tiempoPinza - 1;
+
+            etapa = 0;
+            break;
+    }
+}
+
+// =================================
+// CONTROL DE MOTORES
+// =================================
+
+void motores(uint8_t estado)
+{
+    PORTB = (PORTB & 0xF0) |
+            (estado & 0x0F);
+}
+
+// =================================
+// PROGRAMA PRINCIPAL
+// =================================
+
+int main(void)
+{
+    // Puente H: D8, D9, D10 y D11
+
+    DDRB |= 0x0F;
+    motores(0x00);
+
+    UART_init();
+    actualizarServos();
+    Timer1_init();
+
+    sei();
+
+    char comando;
+
+    while (1)
+    {
+        if (UCSR0A & (1 << RXC0))
+        {
+            comando = UDR0;
+
+            switch (comando)
+            {
+                // ADELANTE
+
+                case 'F':
+                case '1':
+
+                    motores(0x05);
+                    break;
+
+                // ATRAS
+
+                case 'B':
+                case '2':
+
+                    motores(0x0A);
+                    break;
+
+                // IZQUIERDA
+
+                case 'L':
+                case '3':
+
+                    motores(0x06);
+                    break;
+
+                // DERECHA
+
+                case 'R':
+                case '4':
+
+                    motores(0x09);
+                    break;
+
+                // STOP
+
+                case 'S':
+                case '0':
+
+                    motores(0x00);
+                    break;
+
+                // SUBIR BRAZO
+
+                case 'U':
+
+                    if (brazo <= 160)
+                        brazo += 10;
+
+                    actualizarServos();
+                    break;
+
+                // BAJAR BRAZO
+
+                case 'D':
+
+                    if (brazo >= 20)
+                        brazo -= 10;
+
+                    actualizarServos();
+                    break;
+
+                // ABRIR PINZA
+
+                case 'A':
+
+                    if (pinza <= 160)
+                        pinza += 10;
+
+                    actualizarServos();
+                    break;
+
+                // CERRAR PINZA
+
+                case 'C':
+
+                    if (pinza >= 20)
+                        pinza -= 10;
+
+                    actualizarServos();
+                    break;
+            }
+        }
+    }
+}
